@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# IDE / tooling
+.claude/*
+!.claude/commands/
+.codemie/
+.cursor/
+.superpowers/
+.wrangler/
+
+# Coverage output
+coverage/
