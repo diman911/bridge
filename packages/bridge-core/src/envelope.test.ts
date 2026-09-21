@@ -7,6 +7,12 @@ import {
   decodeEnvelope,
 } from './envelope.js';
 
+import {
+  MAX_ENVELOPE_BYTES,
+  PROTOCOL_VERSION,
+  decodeEnvelope as decodeEnvelopeFromPublicApi,
+  isCompatibleProtocolVersion,
+} from './index.js';
 const envelope = {
   protocolVersion: 1,
   project_id: 'project-1',
@@ -63,3 +69,10 @@ describe('report envelope v1', () => {
     ).toMatchObject({ ok: false, error: { code: 'invalid_description' } });
   });
 });
+
+  it('exposes the decoder from the package entry point and enforces its byte limit', () => {
+    expect(isCompatibleProtocolVersion(PROTOCOL_VERSION)).toBe(true);
+    expect(
+      decodeEnvelopeFromPublicApi({ ...envelope, report: { payload: 'x'.repeat(MAX_ENVELOPE_BYTES) } }),
+    ).toMatchObject({ ok: false, error: { code: 'envelope_too_large' } });
+  });

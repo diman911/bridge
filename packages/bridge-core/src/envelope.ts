@@ -1,9 +1,6 @@
 import type { EnvelopeIntent, EvidenceOptions, ReportEnvelopePayload } from './envelope-v1.js';
 import type { IntegrationError } from './types.js';
 
-/** Versions whose frozen wire fixtures the current Bridge must still accept. */
-export const SUPPORTED_PROTOCOL_VERSIONS: ReadonlySet<number> = new Set([1]);
-
 /** Conservative temporary ceiling; B7 replaces this with the measured Worker limit. */
 export const MAX_ENVELOPE_BYTES = 1_000_000;
 export const MAX_TITLE_LENGTH = 32_768;
@@ -65,10 +62,21 @@ function decodeOptions(value: unknown): EvidenceOptions | null {
     return null;
   return { includeHar: value.includeHar, includeScreenshots: value.includeScreenshots };
 }
+function serializedEnvelopeBytes(value: Record<string, unknown>): number | null {
+  try {
+    return new TextEncoder().encode(JSON.stringify(value)).byteLength;
+  } catch {
+    return null;
+  }
+}
 
 /** Decodes the v1 wire shape to the single connector-facing internal model. */
 export function decodeEnvelopeV1(value: unknown): DecodeResult {
   if (!isRecord(value)) return fail('invalid_envelope', 'envelope must be an object');
+  const bytes = serializedEnvelopeBytes(value);
+  if (bytes === null) return fail('invalid_envelope', 'envelope must be JSON-serializable');
+  if (bytes > MAX_ENVELOPE_BYTES)
+    return fail('envelope_too_large', `envelope must not exceed ${MAX_ENVELOPE_BYTES} bytes`);
   if (value.protocolVersion !== 1)
     return fail('unsupported_protocol_version', 'envelope protocolVersion 1 is required for this route');
   const projectId = requiredString(value, 'project_id');
@@ -108,6 +116,9 @@ export function decodeEnvelopeV1(value: unknown): DecodeResult {
 export const ENVELOPE_DECODERS: ReadonlyMap<number, EnvelopeDecoder> = new Map([
   [1, decodeEnvelopeV1],
 ]);
+/** Versions whose frozen wire fixtures the current Bridge must still accept. */
+export const SUPPORTED_PROTOCOL_VERSIONS: ReadonlySet<number> = new Set(ENVELOPE_DECODERS.keys());
+
 
 export function decodeEnvelope(value: unknown): DecodeResult {
   if (!isRecord(value) || typeof value.protocolVersion !== 'number')

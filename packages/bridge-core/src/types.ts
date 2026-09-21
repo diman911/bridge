@@ -3,6 +3,8 @@
 // ("Generic integration contract", "Protocol v1 scope"). Stabilized per
 // docs/plans/01-stabilize-contract.md.
 
+import { SUPPORTED_PROTOCOL_VERSIONS } from './envelope.js';
+
 /**
  * Protocol version this package implements. A command/manifest carries this
  * so a version mismatch is detected explicitly rather than by a connector
@@ -15,7 +17,7 @@ export const PROTOCOL_VERSION = 1;
 
 /** Whether a command/manifest's declared version is one this package can execute. */
 export function isCompatibleProtocolVersion(version: number): boolean {
-  return version === PROTOCOL_VERSION;
+  return SUPPORTED_PROTOCOL_VERSIONS.has(version);
 }
 
 /** What the command acts on. `none` covers context-handoff / share-only flows. */
@@ -97,6 +99,8 @@ export interface IntegrationResult {
   issueUrl?: string;
   attachments?: AttachmentResult[];
   error?: IntegrationError;
+  /** Additive response metadata for protocol lifecycle notices. */
+  metadata?: import('./envelope.js').ResponseMetadata;
 }
 
 /**
