@@ -1,6 +1,7 @@
 import {
   DEPRECATED_PROTOCOL_VERSIONS,
   ENVELOPE_DECODERS,
+  MAX_JSON_REQUEST_BYTES,
   PROTOCOL_VERSION,
   decodeEnvelope,
   toConnectorCommand,
@@ -65,8 +66,42 @@ function readEnvelope(value: unknown): value is ReadEnvelope {
   );
 }
 async function body(request: Request): Promise<unknown> {
-  const text = await request.text();
+  const declared = request.headers.get('content-length');
+  if (declared !== null) {
+    const bytes = Number(declared);
+    if (Number.isFinite(bytes) && bytes > MAX_JSON_REQUEST_BYTES)
+      return error(
+        'request_too_large',
+        `JSON request must not exceed ${MAX_JSON_REQUEST_BYTES} bytes`,
+        413,
+      );
+  }
+  if (!request.body) return error('invalid_json', 'request body must be JSON', 400);
+  const reader = request.body.getReader() as ReadableStreamDefaultReader<Uint8Array>;
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_JSON_REQUEST_BYTES) {
+      await reader.cancel('request body exceeds JSON limit');
+      return error(
+        'request_too_large',
+        `JSON request must not exceed ${MAX_JSON_REQUEST_BYTES} bytes`,
+        413,
+      );
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
   try {
+    const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(bytes);
     return JSON.parse(text);
   } catch {
     return error('invalid_json', 'request body must be JSON', 400);

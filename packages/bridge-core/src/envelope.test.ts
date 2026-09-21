@@ -83,6 +83,26 @@ describe('command envelope v1', () => {
     });
   });
 
+  it('accepts the defined onConflict combinations and rejects undefined values', () => {
+    const { technicalSection: _technicalSection, ...withoutTechnicalSection } = update;
+    expect(
+      decodeEnvelope({ ...update, onConflict: 'append', technicalSection: 'replacement block' }),
+    ).toMatchObject({ ok: true });
+    expect(decodeEnvelope({ ...update, onConflict: 'append', technicalSection: '' })).toMatchObject(
+      { ok: true },
+    );
+    expect(decodeEnvelope({ ...withoutTechnicalSection, onConflict: 'replace' })).toMatchObject({
+      ok: true,
+    });
+    expect(
+      decodeEnvelope({ ...update, onConflict: 'replace', technicalSection: '' }),
+    ).toMatchObject({ ok: true });
+    expect(decodeEnvelope({ ...update, onConflict: undefined })).toMatchObject({
+      ok: false,
+      error: { code: 'invalid_command' },
+    });
+  });
+
   it('enforces text limits while allowing technical-section deletion', () => {
     expect(
       decodeEnvelope({ ...update, subject: 'x'.repeat(MAX_SUBJECT_LENGTH + 1) }),

@@ -3,6 +3,11 @@ import type { IntegrationError } from './types.js';
 export const MAX_SUBJECT_LENGTH = 32_768;
 export const MAX_DESCRIPTION_LENGTH = 32_768;
 export const MAX_TECHNICAL_SECTION_LENGTH = 32_768;
+/**
+ * Maximum encoded JSON request size for commands and reads. This is a
+ * transport safety limit, not the retired report-envelope limit.
+ */
+export const MAX_JSON_REQUEST_BYTES = 256 * 1024;
 
 export interface DeprecationNotice {
   successorVersion: number;

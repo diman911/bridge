@@ -38,6 +38,9 @@ design was dropped (07, "History"). What survives and what does not:
   - Internal command model updated accordingly.
   - v1 is redefined in place (nothing shipped): replace the frozen fixtures
     and keep the CI replay.
+  - JSON command/read bodies have a separate transport safety limit and are
+    read incrementally up to that limit before parsing. This is distinct from
+    the removed report-envelope ceiling.
 - [x] **B10 — Remove report handling.** Depends on: B9.
   - Delete report decoding, report → issue mapping, report schema-version
     constants and envelope-size constants; update exports.
@@ -50,6 +53,11 @@ design was dropped (07, "History"). What survives and what does not:
     (`append` | `replace`).
   - Omitted `description` edits only the block and `subject` (Jira ADF
     preserved).
+  - `onConflict: append` preserves malformed text and appends a block only
+    when `technicalSection` is non-empty. `onConflict: replace` requires
+    `description` and replaces the complete description, adding a block only
+    when a non-empty `technicalSection` is present. An omitted section leaves
+    the block untouched in the normal path; an empty section removes it.
   - Tests per provider (Jira ADF, GitHub Markdown, Azure DevOps HTML).
 - [ ] **B12 — `POST /v1/attachments`.** Depends on: B9, control-plane C3.
   - `multipart/form-data`: `meta` JSON part + `file` part, one file per

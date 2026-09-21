@@ -2,7 +2,12 @@ import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { PROTOCOL_VERSION, type Connector, type ConnectorCommand } from '@fairlead/bridge-core';
+import {
+  MAX_JSON_REQUEST_BYTES,
+  PROTOCOL_VERSION,
+  type Connector,
+  type ConnectorCommand,
+} from '@fairlead/bridge-core';
 import { createEnvelopeBridgeWorker } from './v1.js';
 
 const contract = join(dirname(fileURLToPath(import.meta.url)), '../../bridge-core/contract/v1');
@@ -58,6 +63,46 @@ describe('v1 frozen contract fixtures', () => {
       expect(response.status, name).toBe(200);
       expect(await response.json(), name).toMatchObject({ ok: true });
     }
+  });
+
+  it('rejects an oversized declared body before reading it', async () => {
+    const response = await worker.fetch(
+      new Request('https://bridge.example.test/v1/commands', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer fairlead-token',
+          'content-length': String(MAX_JSON_REQUEST_BYTES + 1),
+        },
+        body: '{}',
+      }),
+      env,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(413);
+    expect(await response.json()).toMatchObject({ error: { code: 'request_too_large' } });
+  });
+
+  it('stops reading an oversized chunked body before JSON parsing or resolution', async () => {
+    let resolved = 0;
+    const guardedEnv = {
+      CONTROL_PLANE: {
+        resolveBridgeCredential: async () => {
+          resolved++;
+          return { error: 'invalid_token' };
+        },
+      },
+    };
+    const response = await worker.fetch(
+      new Request('https://bridge.example.test/v1/commands', {
+        method: 'POST',
+        headers: { authorization: 'Bearer fairlead-token' },
+        body: JSON.stringify({ ignored: 'x'.repeat(MAX_JSON_REQUEST_BYTES) }),
+      }),
+      guardedEnv,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(413);
+    expect(resolved).toBe(0);
   });
 
   it('hands the connector only narrow command fields', async () => {
