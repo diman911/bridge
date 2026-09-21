@@ -111,13 +111,31 @@ export class GithubConnector implements Connector {
         headers: this.h(),
         signal,
       });
+      if (!ref.ok && ref.status !== 404)
+        return {
+          reference: e,
+          ok: false,
+          error: { code: 'attachment_branch_failed', message: String(ref.status) },
+        };
       if (ref.status === 404) {
         const repo = await this.f(this.path(''), { headers: this.h(), signal });
+        if (!repo.ok)
+          return {
+            reference: e,
+            ok: false,
+            error: { code: 'attachment_branch_failed', message: String(repo.status) },
+          };
         const def = ((await repo.json()) as { default_branch: string }).default_branch;
         const head = await this.f(this.path(`/git/ref/heads/${def}`), {
           headers: this.h(),
           signal,
         });
+        if (!head.ok)
+          return {
+            reference: e,
+            ok: false,
+            error: { code: 'attachment_branch_failed', message: String(head.status) },
+          };
         const sha = ((await head.json()) as { object: { sha: string } }).object.sha;
         const made = await this.f(this.path('/git/refs'), {
           method: 'POST',
@@ -134,6 +152,19 @@ export class GithubConnector implements Connector {
       }
       const name = new URL(e.sessionUrl).pathname.split('/').pop() || 'evidence';
       const path = `attachments/${id}/${name}`;
+      const existing = await this.f(this.path(`/contents/${path}?ref=${branch}`), {
+        headers: this.h(),
+        signal,
+      });
+      if (!existing.ok && existing.status !== 404)
+        return {
+          reference: e,
+          ok: false,
+          error: { code: 'attachment_upload_failed', message: String(existing.status) },
+        };
+      const existingSha = existing.ok
+        ? ((await existing.json()) as { sha: string }).sha
+        : undefined;
       const put = await this.f(this.path(`/contents/${path}`), {
         method: 'PUT',
         headers: this.h(true),
@@ -141,6 +172,7 @@ export class GithubConnector implements Connector {
           message: `Add attachment for issue #${id}`,
           content: base64(new Uint8Array(await source.arrayBuffer())),
           branch,
+          ...(existingSha ? { sha: existingSha } : {}),
         }),
         signal,
       });
@@ -152,27 +184,18 @@ export class GithubConnector implements Connector {
         };
       const uploaded = (await put.json()) as { content: { html_url: string } };
       const raw = uploaded.content.html_url.replace('/blob/', '/raw/');
-      const issue = await this.f(this.path(`/issues/${id}`), { headers: this.h(), signal });
-      if (!issue.ok)
-        return {
-          reference: e,
-          ok: false,
-          error: { code: 'attachment_link_failed', message: String(issue.status) },
-        };
-      const current = (await issue.json()) as { body: string | null };
-      const body = `${current.body ?? ''}\n\n### Attachments\n- [${name}](${raw})`;
-      const patch = await this.f(this.path(`/issues/${id}`), {
-        method: 'PATCH',
+      const comment = await this.f(this.path(`/issues/${id}/comments`), {
+        method: 'POST',
         headers: this.h(true),
-        body: JSON.stringify({ body }),
+        body: JSON.stringify({ body: `### Attachments\n- [${name}](${raw})` }),
         signal,
       });
-      return patch.ok
+      return comment.ok
         ? { reference: e, ok: true }
         : {
             reference: e,
             ok: false,
-            error: { code: 'attachment_link_failed', message: String(patch.status) },
+            error: { code: 'attachment_link_failed', message: String(comment.status) },
           };
     } catch {
       return {
@@ -182,12 +205,12 @@ export class GithubConnector implements Connector {
       };
     }
   }
-  async read(op: ReadOperation): Promise<ReadResult> {
+  async read(op: ReadOperation, options: ConnectorExecutionOptions): Promise<ReadResult> {
     const u =
       op.type === 'search'
         ? `${this.base}/search/issues?q=${encodeURIComponent(`${op.query} repo:${this.c.owner}/${this.c.repo} type:issue`)}&per_page=10`
         : this.path(`/issues/${encodeURIComponent(op.id)}`);
-    const r = await this.f(u, { headers: this.h() });
+    const r = await this.f(u, { headers: this.h(), signal: options.signal });
     if (!r.ok)
       return { ok: false, error: { code: 'github_request_failed', message: String(r.status) } };
     const d = (await r.json()) as {

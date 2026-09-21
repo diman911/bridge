@@ -176,11 +176,11 @@ export class AzureDevOpsConnector implements Connector {
       };
     }
   }
-  async read(op: ReadOperation): Promise<ReadResult> {
+  async read(op: ReadOperation, options: ConnectorExecutionOptions): Promise<ReadResult> {
     if (op.type === 'fetch') {
       const r = await this.f(
         `${this.base}/_apis/wit/workitems/${encodeURIComponent(op.id)}?api-version=7.1`,
-        { headers: { Authorization: this.auth() } },
+        { headers: { Authorization: this.auth() }, signal: options.signal },
       );
       if (!r.ok)
         return {
@@ -213,6 +213,7 @@ export class AzureDevOpsConnector implements Connector {
       body: JSON.stringify({
         query: `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project AND [System.Title] CONTAINS '${q}'`,
       }),
+      signal: options.signal,
     });
     if (!wiql.ok)
       return {
@@ -226,7 +227,7 @@ export class AzureDevOpsConnector implements Connector {
     if (!ids) return { ok: true, issues: [] };
     const r = await this.f(
       `${this.base}/_apis/wit/workitems?ids=${ids}&fields=System.Title,System.State&api-version=7.1`,
-      { headers: { Authorization: this.auth() } },
+      { headers: { Authorization: this.auth() }, signal: options.signal },
     );
     if (!r.ok)
       return {

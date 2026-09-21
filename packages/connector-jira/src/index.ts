@@ -159,12 +159,12 @@ export class JiraConnector implements Connector {
       };
     }
   }
-  async read(op: ReadOperation): Promise<ReadResult> {
+  async read(op: ReadOperation, options: ConnectorExecutionOptions): Promise<ReadResult> {
     if (op.type === 'search') {
       const u = new URL(`${this.base}/rest/api/3/issue/picker`);
       u.searchParams.set('query', op.query);
       u.searchParams.set('currentJQL', 'project = ' + this.c.projectKey);
-      const r = await this.f(u, { headers: this.h() });
+      const r = await this.f(u, { headers: this.h(), signal: options.signal });
       if (!r.ok)
         return { ok: false, error: { code: 'jira_request_failed', message: String(r.status) } };
       const d = (await r.json()) as {
@@ -180,7 +180,7 @@ export class JiraConnector implements Connector {
     }
     const r = await this.f(
       `${this.base}/rest/api/3/issue/${encodeURIComponent(op.id)}?fields=summary,status,project`,
-      { headers: this.h() },
+      { headers: this.h(), signal: options.signal },
     );
     if (!r.ok)
       return { ok: false, error: { code: 'jira_request_failed', message: String(r.status) } };

@@ -25,6 +25,7 @@ export interface ConnectorExecutionOptions {
   /** Connector implementations must pass this to every abortable provider request. */
   signal: AbortSignal;
 }
+export type ConnectorReadOptions = ConnectorExecutionOptions;
 
 /** Implemented per transport (direct in-extension, cloud-mode Bridge worker, private-mode Bridge runner). */
 export interface Connector {
@@ -40,5 +41,5 @@ export interface Connector {
    * not implement it, but every v1 issue-tracker connector (Jira, GitHub,
    * Azure DevOps) does.
    */
-  read?(operation: ReadOperation): Promise<ReadResult>;
+  read?(operation: ReadOperation, options: ConnectorReadOptions): Promise<ReadResult>;
 }
