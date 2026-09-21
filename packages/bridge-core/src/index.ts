@@ -16,7 +16,7 @@ export type {
   ConnectorExecutionOptions,
   ConnectorAttachmentOptions,
 } from './connector.js';
-export type { AttachmentMetaV1 } from './attachment-v1.js';
+export { MAX_ATTACHMENT_BYTES, type AttachmentMetaV1 } from './attachment-v1.js';
 export type {
   AttachmentMeta,
   AttachmentMetaDecodeResult,
@@ -24,7 +24,6 @@ export type {
 } from './attachment.js';
 export {
   MAX_ATTACHMENT_META_BYTES,
-  MAX_ATTACHMENT_BYTES,
   decodeAttachmentMetaV1,
 } from './attachment.js';
 export type {
