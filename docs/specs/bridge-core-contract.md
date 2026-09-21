@@ -19,6 +19,9 @@ decoder and maps the wire command to `InternalIntegrationCommand` (camel-cased
 trusted routing fields). `SUPPORTED_PROTOCOL_VERSIONS` is the single
 compatible-version set used by `isCompatibleProtocolVersion()`. A version not in
 that set returns `error.code: 'unsupported_protocol_version'`, not an exception.
+The extension sends its own version and learns nothing about Bridge's supported
+versions in advance: every route (`/v1/commands`, `/v1/reads`, `/v1/attachments`)
+answers an unknown `protocolVersion` with `400 unsupported_protocol_version`.
 
 `MAX_SUBJECT_LENGTH`, `MAX_DESCRIPTION_LENGTH` and `MAX_TECHNICAL_SECTION_LENGTH`
 (32 768 characters each) are enforced while decoding. JSON command and read

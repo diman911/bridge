@@ -144,7 +144,12 @@ export class AttachmentMultipartReader {
       throw new MultipartError('invalid_attachment_meta', 'meta must contain valid JSON');
     }
     const decoded = decodeAttachmentMetaV1(json);
-    if (!decoded.ok) throw new MultipartError(decoded.error.code, decoded.error.message, 422);
+    if (!decoded.ok)
+      throw new MultipartError(
+        decoded.error.code,
+        decoded.error.message,
+        decoded.error.code === 'unsupported_protocol_version' ? 400 : 422,
+      );
     return decoded.value;
   }
 

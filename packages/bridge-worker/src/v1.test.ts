@@ -265,6 +265,48 @@ describe('v1 frozen contract fixtures', () => {
   });
 });
 
+describe('unsupported protocol version', () => {
+  const routing = { project_id: 'project-123', tracker_instance_id: 'tracker-456' };
+  const post = (path: string, body: BodyInit, headers: Record<string, string> = {}) =>
+    worker.fetch(
+      new Request(`https://bridge.example.test${path}`, {
+        method: 'POST',
+        headers: { authorization: 'Bearer fairlead-token', ...headers },
+        body,
+      }),
+      env,
+      {} as ExecutionContext,
+    );
+
+  it.each([
+    ['/v1/commands', { type: 'create_issue', subject: 'S', description: 'D', idempotencyKey: 'k' }],
+    ['/v1/reads', { operation: { type: 'fetch', id: '1' } }],
+  ])('answers 400 unsupported_protocol_version on %s', async (path, payload) => {
+    const response = await post(
+      path,
+      JSON.stringify({ protocolVersion: 99, ...routing, ...payload }),
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: { code: 'unsupported_protocol_version' },
+    });
+  });
+
+  it('answers 400 unsupported_protocol_version on /v1/attachments', async () => {
+    const requestBody = multipart(
+      { ...attachmentMeta, protocolVersion: 99 },
+      new TextEncoder().encode('x'),
+    );
+    const response = await post('/v1/attachments', requestBody.body, {
+      'content-type': requestBody.contentType,
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: { code: 'unsupported_protocol_version' },
+    });
+  });
+});
+
 describe('POST /v1/attachments', () => {
   it('authenticates before reading any multipart bytes', async () => {
     const response = await worker.fetch(

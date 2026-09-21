@@ -1,6 +1,7 @@
 import {
   DEPRECATED_PROTOCOL_VERSIONS,
   ENVELOPE_DECODERS,
+  SUPPORTED_PROTOCOL_VERSIONS,
   MAX_JSON_REQUEST_BYTES,
   MAX_ATTACHMENT_BYTES,
   PROTOCOL_VERSION,
@@ -391,6 +392,16 @@ export function createEnvelopeBridgeWorker(
           );
         }
       }
+      if (
+        record(payload) &&
+        typeof payload.protocolVersion === 'number' &&
+        !SUPPORTED_PROTOCOL_VERSIONS.has(payload.protocolVersion)
+      )
+        return error(
+          'unsupported_protocol_version',
+          `envelope protocolVersion ${payload.protocolVersion} is not supported`,
+          400,
+        );
       if (!readEnvelope(payload))
         return error(
           'invalid_request',
