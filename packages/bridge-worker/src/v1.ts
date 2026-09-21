@@ -160,35 +160,30 @@ function requestTimeoutSeconds(resolved: ResolvedBridgeCredential): number {
     : DEFAULT_REQUEST_TIMEOUT_SECONDS;
 }
 /**
- * `signal` covers the request(s) that mutate or read; `attachmentSignal` is a
- * second, later deadline for evidence uploads, so a slow upload can neither
- * cancel a mutation that already succeeded nor turn it into a 504. The backstop
- * sits a little past the attachment deadline, letting connectors report late
- * uploads as failed attachments first.
+ * `signal` aborts provider requests at the deadline. The backstop sits a little
+ * past it, letting connectors surface the abort themselves before the request
+ * is failed outright.
  */
 async function executeWithinTimeout<T>(
   timeoutSeconds: number,
-  attachmentSeconds: number,
-  work: (signal: AbortSignal, attachmentSignal: AbortSignal) => Promise<T>,
+  work: (signal: AbortSignal) => Promise<T>,
 ): Promise<T> {
   const controller = new AbortController();
-  const attachments = new AbortController();
   const timers: ReturnType<typeof setTimeout>[] = [];
   const timeout = new Promise<never>((_resolve, reject) => {
     timers.push(setTimeout(() => controller.abort(), timeoutSeconds * 1000));
-    timers.push(setTimeout(() => attachments.abort(), (timeoutSeconds + attachmentSeconds) * 1000));
     timers.push(
       setTimeout(
         () => {
           controller.abort();
           reject(new Error('request_timeout'));
         },
-        (timeoutSeconds + attachmentSeconds) * 1000 + BACKSTOP_GRACE_MS,
+        timeoutSeconds * 1000 + BACKSTOP_GRACE_MS,
       ),
     );
   });
   try {
-    return await Promise.race([work(controller.signal, attachments.signal), timeout]);
+    return await Promise.race([work(controller.signal), timeout]);
   } finally {
     timers.forEach(clearTimeout);
   }
@@ -299,7 +294,6 @@ export function createEnvelopeBridgeWorker(
             );
           return await executeWithinTimeout(
             requestTimeoutSeconds(credential),
-            0,
             async (signal): Promise<Response> => {
               const connector = connectorFor(dependencies, credential, signal);
               if (isResponse(connector)) return connector;
@@ -365,14 +359,13 @@ export function createEnvelopeBridgeWorker(
         try {
           const result = await executeWithinTimeout(
             requestTimeoutSeconds(credential),
-            requestTimeoutSeconds(credential),
-            async (signal, attachmentSignal): Promise<IntegrationResult | Response> => {
+            async (signal): Promise<IntegrationResult | Response> => {
               const connector = connectorFor(dependencies, credential, signal);
               if (isResponse(connector)) return connector;
               const rejected = unsupported(connector, command.type);
               if (rejected)
                 return { idempotencyKey: command.idempotencyKey, ok: false, error: rejected };
-              return connector.execute(toConnectorCommand(command), { signal, attachmentSignal });
+              return connector.execute(toConnectorCommand(command), { signal });
             },
           );
           if (isResponse(result)) return result;
@@ -415,7 +408,6 @@ export function createEnvelopeBridgeWorker(
       try {
         return await executeWithinTimeout(
           requestTimeoutSeconds(credential),
-          0,
           async (signal): Promise<Response> => {
             const connector = connectorFor(dependencies, credential, signal);
             if (isResponse(connector)) return connector;

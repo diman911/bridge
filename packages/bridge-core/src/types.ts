@@ -44,12 +44,7 @@ export interface IntegrationError {
   retryable?: boolean;
 }
 
-/**
- * Per-file attachment outcome. A command can report `ok: true` overall
- * (the issue mutation itself succeeded) with one or more attachment
- * failures here — see the source plan's "Protocol v1 scope", "Decided
- * (2026-09-21): partial success."
- */
+/** Outcome of one `POST /v1/attachments` upload. */
 export interface AttachmentResult {
   /** Name of the uploaded file this outcome is for. */
   filename: string;
@@ -65,10 +60,9 @@ export interface AttachmentWarning {
 
 export interface IntegrationResult {
   idempotencyKey: string;
-  /** Reflects the issue mutation only — see `attachments` for per-file outcomes. */
+  /** Reflects the issue mutation only; attachments are uploaded separately. */
   ok: boolean;
   issueUrl?: string;
-  attachments?: AttachmentResult[];
   error?: IntegrationError;
   /** Additive response metadata for protocol lifecycle notices. */
   metadata?: import('./envelope.js').ResponseMetadata;
@@ -78,7 +72,7 @@ export interface IntegrationResult {
  * The provider-neutral read contract (search issues / fetch issue) the
  * generic issue picker needs — the source plan describes these in prose
  * only ("Protocol v1 scope"); this is their first typed shape. Deliberately
- * separate from IntegrationCommand/IntegrationResult: a read has no target
+ * separate from ConnectorCommand/IntegrationResult: a read has no target
  * mutation, no idempotency concern, and a different result shape (a list,
  * or a single issue) than a write's single artifact reference.
  */
@@ -91,8 +85,6 @@ export interface IssueSummary {
   title: string;
   url: string;
   status?: string;
-  /** Plain-text description populated by `fetch`; extensions must tolerate its absence. */
-  description?: string;
 }
 
 export interface ReadResult {

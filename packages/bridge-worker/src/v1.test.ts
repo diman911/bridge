@@ -209,31 +209,6 @@ describe('v1 frozen contract fixtures', () => {
     });
   });
 
-  it('gives connectors a separate, later attachment deadline', async () => {
-    let signals: { signal: AbortSignal; attachmentSignal?: AbortSignal } | undefined;
-    const spy: Connector = {
-      ...connector,
-      execute: async (command, options) => {
-        signals = options;
-        return { idempotencyKey: command.idempotencyKey, ok: true };
-      },
-    };
-    const spyWorker = createEnvelopeBridgeWorker({ connectors: new Map([['fixture', () => spy]]) });
-    const body = await readFile(join(contract, 'request-create-issue.json'), 'utf8');
-    const response = await spyWorker.fetch(
-      new Request('https://bridge.example.test/v1/commands', {
-        method: 'POST',
-        headers: { authorization: 'Bearer fairlead-token' },
-        body,
-      }),
-      env,
-      {} as ExecutionContext,
-    );
-    expect(response.status).toBe(200);
-    expect(signals?.attachmentSignal).toBeDefined();
-    expect(signals?.attachmentSignal).not.toBe(signals?.signal);
-  });
-
   it('authenticates before decoding the command', async () => {
     let resolved = 0;
     const rejecting = {

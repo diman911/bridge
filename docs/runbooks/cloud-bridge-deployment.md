@@ -18,8 +18,15 @@ Do this once, before assigning SaaS tracker instances. The default command timeo
 
 Cloud-mode command handling uses the Control Plane Service Binding. It does not register or send heartbeats.
 
-The public API accepts only `POST /v1/commands` and `POST /v1/reads` with a
-Bearer identity token. The body `protocolVersion` must be `1`, matching the
-route. Command envelopes over 10 MiB receive `413`; the application limit is
-intentionally below Cloudflare's minimum 100 MB request-body ceiling because
-the Worker parses JSON in memory.
+The public API accepts only `POST /v1/commands`, `POST /v1/reads` and
+`POST /v1/attachments` with a Bearer identity token. The `protocolVersion` in the
+body (or in the attachment `meta` part) must be `1`.
+
+Request limits, all enforced while the body is read incrementally:
+
+- JSON commands and reads: 256 KiB (`MAX_JSON_REQUEST_BYTES`), otherwise `413`.
+- Attachment `meta` part: 16 KiB.
+- Attachment file: 5 MiB (`MAX_ATTACHMENT_BYTES`), otherwise
+  `413 attachment_too_large`. This is an interim value for every provider; raising
+  it requires measuring Worker memory/CPU per provider, GitHub first because it
+  buffers the file and base64-encodes it.

@@ -9,8 +9,10 @@
 
 The one platform-wide `cloud`-mode Bridge instance every organization's
 SaaS tracker routes through (source plan, "Routing and configuration" —
-"Bridge cardinality"). The package now exists (`packages/bridge-worker`, serving `/v1/commands`
-and `/v1/reads`); this plan was written when only `bridge-core` was scaffolded.
+"Bridge cardinality"). The package now exists (`packages/bridge-worker`, serving `/v1/commands`,
+`/v1/reads` and `/v1/attachments`); this plan was written when only `bridge-core`
+was scaffolded. Current behaviour is in
+[`../specs/bridge-core-contract.md`](../specs/bridge-core-contract.md).
 
 ## Task
 
@@ -38,7 +40,11 @@ none` command (source plan, "Generic integration contract") touches no
   three connectors, all of which target `issue`.
 - Request timeout: 15s default, configurable per Bridge (source plan,
   "Execution model: synchronous") — read from Control Plane routing/config
-  data, not hardcoded.
+  data, not hardcoded. One deadline covers the whole request; there is no
+  separate attachment deadline because attachments are their own request.
+- `/v1/attachments` authenticates the token with a token-only
+  `authenticateBridgeIdentity` call before reading the body, then resolves the
+  credential from the bounded `meta` part (see 08, B12).
 - Dispatch to the resolved connector (`connector-jira`, `connector-github`,
   `connector-azure-devops`) via the `Connector` interface from
   `bridge-core`. `bridge-worker` itself contains no provider-specific logic.

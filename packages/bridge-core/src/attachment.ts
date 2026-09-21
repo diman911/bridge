@@ -1,8 +1,8 @@
 import type { IntegrationError } from './types.js';
 
 export const MAX_ATTACHMENT_META_BYTES = 16 * 1024;
-/** Initial conservative ceiling; B14 re-measures this per provider. */
-export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+/** Conservative ceiling (5 MiB) until B14 measures per-provider limits. */
+export const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 
 export interface AttachmentMeta {
   protocolVersion: 1;

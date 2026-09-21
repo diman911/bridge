@@ -3,7 +3,7 @@
 _(File name kept from the first draft so links stay stable; the report-envelope
 design was replaced by the narrow contract in 07 — see "Phase 1".)_
 
-**Status:** Phase 1 done and superseded; Phase 2 (rework to the narrow contract) not started
+**Status:** Phase 1 done and superseded; Phase 2 implemented in Bridge; control-plane dependencies landed (control-plane `e5ea258`)
 **Source design:** [07-report-envelope-and-versioning.md](07-report-envelope-and-versioning.md) (accepted), [chrome-extension ADR-012](../../../chrome-extension/docs/architecture/decisions/ADR-012-narrow-bridge-contract.md)
 **Counterpart list:** [chrome-extension `docs/plans/bridge-report-envelope-tasks.md`](../../../chrome-extension/docs/plans/bridge-report-envelope-tasks.md)
 
@@ -59,7 +59,7 @@ design was dropped (07, "History"). What survives and what does not:
     when a non-empty `technicalSection` is present. An omitted section leaves
     the block untouched in the normal path; an empty section removes it.
   - Tests per provider (Jira ADF, GitHub Markdown, Azure DevOps HTML).
-- [ ] **B12 — `POST /v1/attachments`.** Depends on: B9, control-plane C3.
+- [x] **B12 — `POST /v1/attachments`.** Depends on: B9, control-plane C3.
   - `multipart/form-data`: `meta` JSON part + `file` part, one file per
     request; validate `meta` (version, project, tracker instance, issue id,
     filename, content type).
@@ -80,15 +80,20 @@ design was dropped (07, "History"). What survives and what does not:
 - [x] **B13 — Deprecation format.** Depends on: B9.
   - `metadata.deprecation = { successorVersion, endOfSupportAt, message? }`,
     replacing the field names used so far.
-- [ ] **B14 — Re-measure limits.** Depends on: B12.
-  - Per-attachment ceiling given Worker memory/CPU when streaming to each
-    provider; set `MAX_ATTACHMENT_BYTES` below the platform request cap.
-- [ ] **B15 — Specs and hygiene.** Depends on: B9–B12.
+- [x] **B14 — Re-measure limits.** Depends on: B12.
+  - Closed on an interim decision: `MAX_ATTACHMENT_BYTES` is fixed at 5 MiB for
+    all providers. Measuring is deferred; raise or split per provider only with
+    data (GitHub buffers and base64-encodes, so it is the binding case).
+  - Deferred measurement: per-attachment ceiling given Worker memory/CPU when
+    streaming to each provider, kept below the platform request cap.
+- [x] **B15 — Specs and hygiene.** Depends on: B9–B12.
   - Update `docs/specs/bridge-core-contract.md` and the deployment runbook
     to the narrow contract and the three routes.
   - Confirm `IssueSummary` carries no raw description or attachment list.
   - Correct stale notes in `02-bridge-worker.md`.
   - Retire the old field-level `IntegrationCommand` if anything still uses it.
+  - Done: `attachmentSignal`, `IntegrationResult.attachments` and
+    `IssueSummary.description` removed; the worker has a single deadline.
 
 ## Follow-ups
 
@@ -96,6 +101,10 @@ design was dropped (07, "History"). What survives and what does not:
   deduplication by `idempotencyKey` (v1 decision).
 
 ## External dependencies (other repos)
+
+All three below are delivered in control-plane `e5ea258` (`CpRpc.authenticateBridgeIdentity`,
+`caller_id` and `connector.settings.attachments_branch` in `resolveBridgeCredential`);
+the shapes match what `bridge-worker` calls.
 
 - **control-plane C3** — `resolveBridgeCredential` returns the caller
   identity (user id).
