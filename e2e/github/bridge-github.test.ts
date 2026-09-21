@@ -42,7 +42,7 @@ describe.skipIf(!token || !owner || !repo)('e2e: local Bridge + local CP + real 
         protocolVersion: 1,
         type: 'create_issue',
         project_id: servers.seed.projectId,
-        tracker_instance_id: servers.seed.githubIntegrationInstanceId,
+        integration_instance_id: servers.seed.githubIntegrationInstanceId,
         subject: title,
         description,
       }),

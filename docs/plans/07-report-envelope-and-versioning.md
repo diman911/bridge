@@ -69,14 +69,14 @@ Bridge never receives a `Report`. It receives text and files.
 | -------------------------------------------------------------------------- | -------------- | -------------- | ------------------------------------------------------------ |
 | `protocolVersion`                                                          | ✔              | ✔              |                                                              |
 | `project_id`                                                               | ✔              | ✔              | from the extension's session                                 |
-| `tracker_instance_id`                                                      | ✔              | ✔              | from CP routing data                                         |
+| `integration_instance_id`                                                  | ✔              | ✔              | from CP routing data                                         |
 | `type`                                                                     | `create_issue` | `update_issue` |                                                              |
 | `issueId`                                                                  | —              | ✔              | provider issue key/number                                    |
 | `subject`                                                                  | ✔              | optional       | max length per `bridge-core` constant                        |
 | `description`                                                              | ✔              | optional       | Markdown, user-authored; provider conversion is Bridge's job |
 | **`POST /v1/attachments`** (`multipart/form-data`) — one file per request: |
 
-- Part `meta` (JSON): `protocolVersion`, `project_id`, `tracker_instance_id`,
+- Part `meta` (JSON): `protocolVersion`, `project_id`, `integration_instance_id`,
   `issueId`, `filename`, `contentType`.
 - Part `file`: the bytes.
 - Idempotent by `(issue, filename)`: uploading the same filename to the same

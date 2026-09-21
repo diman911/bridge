@@ -1,7 +1,7 @@
 {
   "protocolVersion": 1,
   "project_id": "project-123",
-  "tracker_instance_id": "tracker-456",
+  "integration_instance_id": "tracker-456",
   "type": "update_issue",
   "issueId": "APP-42",
   "subject": "Checkout fails after applying a discount",

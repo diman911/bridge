@@ -11,7 +11,7 @@ import { PROTOCOL_VERSION, isCompatibleProtocolVersion } from './index.js';
 const update = {
   protocolVersion: 1,
   project_id: 'project-1',
-  tracker_instance_id: 'tracker-1',
+  integration_instance_id: 'tracker-1',
   type: 'update_issue',
   issueId: 'ISSUE-1',
   subject: 'Broken login',
@@ -25,7 +25,7 @@ describe('command envelope v1', () => {
       value: {
         protocolVersion: 1,
         projectId: 'project-1',
-        trackerInstanceId: 'tracker-1',
+        integrationInstanceId: 'tracker-1',
         type: 'update_issue',
         issueId: 'ISSUE-1',
         subject: 'Broken login',
@@ -64,7 +64,7 @@ describe('command envelope v1', () => {
       decodeEnvelope({
         protocolVersion: 1,
         project_id: 'p',
-        tracker_instance_id: 't',
+        integration_instance_id: 't',
         type: 'update_issue',
         issueId: 'X',
       }),

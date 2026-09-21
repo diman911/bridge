@@ -28,7 +28,7 @@ const BACKSTOP_GRACE_MS = 2000;
 type ReadEnvelope = {
   protocolVersion: number;
   project_id: string;
-  tracker_instance_id: string;
+  integration_instance_id: string;
   operation: { type: 'search'; query: string } | { type: 'fetch'; id: string };
 };
 
@@ -72,7 +72,7 @@ function readEnvelope(value: unknown): value is ReadEnvelope {
   if (
     item.protocolVersion !== 1 ||
     !item.project_id ||
-    !item.tracker_instance_id ||
+    !item.integration_instance_id ||
     !item.operation
   )
     return false;
@@ -242,7 +242,7 @@ function record(value: unknown): value is Record<string, unknown> {
 /** Routing fields only; the command is decoded after authentication. */
 function commandRouting(
   payload: unknown,
-): { version: number; projectId: string; trackerInstanceId: string } | Response {
+): { version: number; projectId: string; integrationInstanceId: string } | Response {
   if (!record(payload) || typeof payload.protocolVersion !== 'number')
     return error('invalid_envelope', 'envelope protocolVersion is required', 400);
   if (!ENVELOPE_DECODERS.has(payload.protocolVersion))
@@ -254,14 +254,14 @@ function commandRouting(
   if (
     typeof payload.project_id !== 'string' ||
     !payload.project_id ||
-    typeof payload.tracker_instance_id !== 'string' ||
-    !payload.tracker_instance_id
+    typeof payload.integration_instance_id !== 'string' ||
+    !payload.integration_instance_id
   )
-    return error('invalid_envelope', 'project_id and tracker_instance_id are required', 400);
+    return error('invalid_envelope', 'project_id and integration_instance_id are required', 400);
   return {
     version: payload.protocolVersion,
     projectId: payload.project_id,
-    trackerInstanceId: payload.tracker_instance_id,
+    integrationInstanceId: payload.integration_instance_id,
   };
 }
 
@@ -295,7 +295,7 @@ export function createEnvelopeBridgeWorker(
             env.CONTROL_PLANE,
             bearer,
             meta.projectId,
-            meta.trackerInstanceId,
+            meta.integrationInstanceId,
           );
           if (isResponse(credential)) return credential;
           if (credential.caller_id !== identity.callerId)
@@ -353,7 +353,7 @@ export function createEnvelopeBridgeWorker(
           env.CONTROL_PLANE,
           bearer,
           routing.projectId,
-          routing.trackerInstanceId,
+          routing.integrationInstanceId,
         );
         if (isResponse(credential)) return credential;
         const decoded = decodeEnvelope(payload);
@@ -414,7 +414,7 @@ export function createEnvelopeBridgeWorker(
         env.CONTROL_PLANE,
         bearer,
         payload.project_id,
-        payload.tracker_instance_id,
+        payload.integration_instance_id,
       );
       if (isResponse(credential)) return credential;
       const read = payload;

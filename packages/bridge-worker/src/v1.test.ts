@@ -60,7 +60,7 @@ function multipart(meta: Record<string, unknown>, file: Uint8Array, boundary = '
 const attachmentMeta = {
   protocolVersion: 1,
   project_id: 'project-123',
-  tracker_instance_id: 'tracker-456',
+  integration_instance_id: 'tracker-456',
   issueId: 'APP-42',
   filename: 'capture.har',
   contentType: 'application/x-http-archive',
@@ -264,7 +264,7 @@ describe('connector configuration', () => {
 });
 
 describe('unsupported protocol version', () => {
-  const routing = { project_id: 'project-123', tracker_instance_id: 'tracker-456' };
+  const routing = { project_id: 'project-123', integration_instance_id: 'tracker-456' };
   const post = (path: string, body: BodyInit, headers: Record<string, string> = {}) =>
     worker.fetch(
       new Request(`https://bridge.example.test${path}`, {

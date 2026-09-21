@@ -2,7 +2,7 @@
 interface CommandEnvelopeV1 {
   protocolVersion: number;
   project_id: string;
-  tracker_instance_id: string;
+  integration_instance_id: string;
 }
 
 export interface CreateIssueCommandV1 extends CommandEnvelopeV1 {

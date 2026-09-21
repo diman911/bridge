@@ -31,7 +31,7 @@ design was dropped (07, "History"). What survives and what does not:
 
 - [x] **B9 — Reshape wire types and decoder.** Depends on: none.
   - `create_issue` / `update_issue` commands per 07 D2: `subject`,
-    `description`, `issueId`, `project_id`, `tracker_instance_id`,
+    `description`, `issueId`, `project_id`, `integration_instance_id`,
     `protocolVersion`.
     No `report`, `options`, `connectorId`, `projectContext`, `callerId`.
   - Wire-only types stay in a file the extension can vendor verbatim.

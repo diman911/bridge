@@ -11,7 +11,7 @@ describes the current shape, not why it looks this way.
 The public write wire format is `EnvelopeV1` in `src/envelope-v1.ts`, a union of
 two commands. `create_issue` carries `subject` and `description`; `update_issue`
 carries `issueId` and optional `subject` and `description`. Both carry
-`protocolVersion`, `project_id` and `tracker_instance_id`, and never a caller
+`protocolVersion`, `project_id` and `integration_instance_id`, and never a caller
 identity, connector identity, connector configuration or report body.
 `decodeEnvelope()` selects a registered version
 decoder and maps the wire command to `InternalIntegrationCommand` (camel-cased
@@ -31,7 +31,7 @@ answers normally; its `DeprecationNotice` (`successorVersion`, `endOfSupportAt`,
 The table is empty until a successor version ships.
 
 The Worker authenticates (Control Plane credential resolution, which needs only
-`project_id` and `tracker_instance_id`) before it decodes the command.
+`project_id` and `integration_instance_id`) before it decodes the command.
 
 Frozen wire examples live in `packages/bridge-core/contract/v1/`. The decoder
 test replays every request fixture in every stored version directory.
@@ -78,7 +78,7 @@ configured project.
 
 Attachments never travel with a command. `POST /v1/attachments` takes a bounded
 `meta` part (`MAX_ATTACHMENT_META_BYTES`, 16 KiB: `protocolVersion`, `project_id`,
-`tracker_instance_id`, `issueId`, `filename`, `contentType`)
+`integration_instance_id`, `issueId`, `filename`, `contentType`)
 followed by one `file` part. The Worker authenticates the token before reading
 the body, resolves the credential from `meta`, cross-checks the returned
 `caller_id`, then streams the file through an incremental size check;

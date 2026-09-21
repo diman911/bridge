@@ -24,7 +24,7 @@ was scaffolded. Current behaviour is in
 - Resolve the caller's provider credential (OAuth/PAT) and the target
   connector's config (host/port for a SaaS entry is fixed; catalog-type
   lookup) from Control Plane in one round trip, keyed by `project_id` +
-  `tracker_instance_id` — `CpRpc.resolveBridgeCredential`
+  `integration_instance_id` — `CpRpc.resolveBridgeCredential`
   (`control-plane/src/rpc.ts`), a Service Binding call. **Confirmed by
   `control-plane` task 16's audit: this single call already verifies the
   token's global signature internally** (`resolveBridgeCredentialCore`
@@ -69,7 +69,7 @@ none` command (source plan, "Generic integration contract") touches no
       to any connector — via `resolveBridgeCredential`'s built-in
       verification, one round trip, not a separate check.
 - [ ] A command's credential + config resolution is that same one round
-      trip to Control Plane, keyed by `project_id` + `tracker_instance_id`.
+      trip to Control Plane, keyed by `project_id` + `integration_instance_id`.
 - [ ] Request timeout is read from routing/config data, defaults to 15s.
 - [ ] Connector dispatch goes through `bridge-core`'s `Connector` interface
       only — no provider-specific branching in `bridge-worker` itself.

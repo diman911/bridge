@@ -21,7 +21,7 @@ export interface ResponseMetadata {
 interface InternalCommandBase {
   protocolVersion: 1;
   projectId: string;
-  trackerInstanceId: string;
+  integrationInstanceId: string;
 }
 export interface InternalCreateIssueCommand extends InternalCommandBase {
   type: 'create_issue';
@@ -70,9 +70,9 @@ export function decodeEnvelopeV1(value: unknown): DecodeResult {
   if (value.protocolVersion !== 1)
     return fail('unsupported_protocol_version', 'envelope protocolVersion 1 is required');
   const projectId = requiredString(value, 'project_id');
-  const trackerInstanceId = requiredString(value, 'tracker_instance_id');
-  if (!projectId || !trackerInstanceId)
-    return fail('invalid_envelope', 'project_id and tracker_instance_id are required');
+  const integrationInstanceId = requiredString(value, 'integration_instance_id');
+  if (!projectId || !integrationInstanceId)
+    return fail('invalid_envelope', 'project_id and integration_instance_id are required');
   if (value.type !== 'create_issue' && value.type !== 'update_issue')
     return fail('invalid_envelope', 'type must be create_issue or update_issue');
 
@@ -93,7 +93,7 @@ export function decodeEnvelopeV1(value: unknown): DecodeResult {
       value: {
         protocolVersion: 1,
         projectId,
-        trackerInstanceId,
+        integrationInstanceId,
         type: 'create_issue',
         subject,
         description,
@@ -118,7 +118,7 @@ export function decodeEnvelopeV1(value: unknown): DecodeResult {
     value: {
       protocolVersion: 1,
       projectId,
-      trackerInstanceId,
+      integrationInstanceId,
       type: 'update_issue',
       issueId,
       ...(subject === undefined ? {} : { subject }),

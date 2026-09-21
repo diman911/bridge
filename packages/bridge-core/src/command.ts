@@ -18,7 +18,7 @@ export type ConnectorCommand =
 export function toConnectorCommand(command: InternalIntegrationCommand): ConnectorCommand {
   const {
     projectId: _projectId,
-    trackerInstanceId: _trackerInstanceId,
+    integrationInstanceId: _integrationInstanceId,
     ...connectorCommand
   } = command;
   return connectorCommand;
