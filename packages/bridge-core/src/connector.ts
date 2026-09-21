@@ -1,10 +1,19 @@
-import type { IntegrationCommand, IntegrationResult, Outcome, TargetReference } from './types.js';
+import type {
+  IntegrationCommand,
+  IntegrationResult,
+  Outcome,
+  ReadOperation,
+  ReadResult,
+  TargetReference,
+} from './types.js';
 
 /**
  * What a connector supports, rendered by the extension into a generic UI —
  * the extension must not need provider-specific logic per connector.
  */
 export interface ConnectorCapabilities {
+  /** The protocol version this connector's manifest/execute() speak. */
+  protocolVersion: number;
   connectorId: string;
   displayName: string;
   supportedTargets: TargetReference['kind'][];
@@ -17,4 +26,12 @@ export interface ConnectorCapabilities {
 export interface Connector {
   readonly capabilities: ConnectorCapabilities;
   execute(command: IntegrationCommand): Promise<IntegrationResult>;
+  /**
+   * Search/fetch — the provider-neutral read contract the generic issue
+   * picker needs (source plan, "Protocol v1 scope"). Optional: a
+   * write-only connector (e.g. a future share-only-style connector) need
+   * not implement it, but every v1 issue-tracker connector (Jira, GitHub,
+   * Azure DevOps) does.
+   */
+  read?(operation: ReadOperation): Promise<ReadResult>;
 }
