@@ -108,4 +108,57 @@ describe('managed Fairlead block', () => {
       value: { content: [block, block, expect.objectContaining({ type: 'codeBlock' })] },
     });
   });
+
+  it('fences a technical section that itself contains a code fence', () => {
+    const tech = 'log:\n```\ninner\n```\nend';
+    const first = mergeMarkdown('prose', { technicalSection: tech });
+    if (!first.ok) throw new Error('unexpected conflict');
+    const second = mergeMarkdown(first.value, { technicalSection: 'next' });
+    expect(second).toEqual({ ok: true, value: 'prose\n\n```fairlead\nnext\n```' });
+  });
+
+  it('does not erase prose when replace is sent without a description on a healthy issue', () => {
+    expect(
+      mergeMarkdown('keep me\n\n```fairlead\nold\n```', {
+        technicalSection: 'new',
+        onConflict: 'replace',
+      }),
+    ).toEqual({ ok: true, value: 'keep me\n\n```fairlead\nnew\n```' });
+    const doc: AdfDocument = {
+      version: 1,
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'keep me' }] }],
+    };
+    expect(mergeAdf(doc, { technicalSection: 'x', onConflict: 'replace' })).toMatchObject({
+      ok: true,
+      value: { content: [{ type: 'paragraph' }, { type: 'codeBlock' }] },
+    });
+  });
+
+  it('refuses replace on a malformed block without a description', () => {
+    expect(
+      mergeMarkdown('a\n```fairlead\nx', { technicalSection: 'y', onConflict: 'replace' }),
+    ).toMatchObject({ ok: false, error: { code: 'description_conflict' } });
+  });
+
+  it('keeps the block in place when only the technical section changes', () => {
+    expect(
+      mergeMarkdown('before\n\n```fairlead\nold\n```\n\nafter', { technicalSection: 'new' }),
+    ).toEqual({ ok: true, value: 'before\n\n```fairlead\nnew\n```\n\nafter' });
+    const para = (text: string) => ({ type: 'paragraph', content: [{ type: 'text', text }] });
+    const doc: AdfDocument = {
+      version: 1,
+      type: 'doc',
+      content: [
+        para('before'),
+        { type: 'codeBlock', attrs: { language: 'fairlead' }, content: [{ type: 'text', text: 'old' }] },
+        para('after'),
+      ],
+    };
+    const result = mergeAdf(doc, { technicalSection: 'new' });
+    expect(result).toMatchObject({
+      ok: true,
+      value: { content: [{ type: 'paragraph' }, { type: 'codeBlock' }, { type: 'paragraph' }] },
+    });
+  });
 });

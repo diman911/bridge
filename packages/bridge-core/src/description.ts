@@ -26,35 +26,41 @@ export interface AdfDocument {
 type LocatedBlock =
   { state: 'absent' } | { state: 'intact'; start: number; end: number } | { state: 'malformed' };
 
-const conflict = <T>(): DescriptionMergeResult<T> => ({
+const conflict = <T>(
+  message = 'the existing Fairlead block is malformed; retry with onConflict',
+): DescriptionMergeResult<T> => ({
   ok: false,
-  error: {
-    code: 'description_conflict',
-    message: 'the existing Fairlead block is malformed; retry with onConflict',
-  },
+  error: { code: 'description_conflict', message },
 });
+
+const REPLACE_NEEDS_DESCRIPTION =
+  "onConflict 'replace' on a malformed Fairlead block requires a description to rewrite it";
 
 function joinSections(...sections: (string | undefined)[]): string {
   return sections.filter((section) => section !== undefined && section !== '').join('\n\n');
 }
 
 function markdownBlock(value: string): string {
-  return `\`\`\`fairlead\n${value}\n\`\`\``;
+  // Fence must be longer than any backtick run in the value so it cannot close early.
+  const longest = Math.max(0, ...(value.match(/`+/g) ?? []).map((run) => run.length));
+  const fence = '`'.repeat(Math.max(3, longest + 1));
+  return `${fence}fairlead\n${value}\n${fence}`;
 }
 
 function locateMarkdownBlock(existing: string): LocatedBlock {
-  const opener = /^```fairlead[\t ]*\r?$/gm;
-  const openings = [...existing.matchAll(opener)];
-  if (openings.length === 0) return { state: 'absent' };
-  if (openings.length !== 1) return { state: 'malformed' };
-  const match = openings[0];
-  const start = match.index;
-  const contentStart = start + match[0].length;
-  const closing = /^```[\t ]*\r?$/gm;
-  closing.lastIndex = contentStart;
+  const opener = /^(`{3,})fairlead[\t ]*\r?$/gm;
+  const first = opener.exec(existing);
+  if (!first) return { state: 'absent' };
+  const fence = first[1];
+  const start = first.index;
+  const closing = new RegExp(`^\`{${fence.length},}[\t ]*\r?$`, 'gm');
+  closing.lastIndex = start + first[0].length;
   const end = closing.exec(existing);
   if (!end) return { state: 'malformed' };
-  return { state: 'intact', start, end: end.index + end[0].length };
+  const blockEnd = end.index + end[0].length;
+  opener.lastIndex = blockEnd;
+  if (opener.exec(existing)) return { state: 'malformed' };
+  return { state: 'intact', start, end: blockEnd };
 }
 
 function mergeTextBlock(
@@ -72,12 +78,21 @@ function mergeTextBlock(
       ? undefined
       : renderBlock(update.technicalSection);
 
-  if (update.onConflict === 'replace')
-    return { ok: true, value: joinSections(renderedDescription, renderedBlock) };
   if (block.state === 'malformed') {
+    if (update.onConflict === 'replace') {
+      if (renderedDescription === undefined) return conflict(REPLACE_NEEDS_DESCRIPTION);
+      return { ok: true, value: joinSections(renderedDescription, renderedBlock) };
+    }
     if (update.onConflict !== 'append') return conflict();
     return { ok: true, value: joinSections(existing.trim(), renderedBlock) };
   }
+
+  // Only the block changes: keep it where the user has it.
+  if (block.state === 'intact' && renderedDescription === undefined && renderedBlock !== undefined)
+    return {
+      ok: true,
+      value: `${existing.slice(0, block.start)}${renderedBlock}${existing.slice(block.end)}`,
+    };
 
   const prose =
     block.state === 'intact'
@@ -188,14 +203,15 @@ export function mergeAdf(
     : { version: 1, type: 'doc', content: [] };
   const indexes = doc.content.flatMap((node, index) => (isFairleadBlock(node) ? [index] : []));
   const malformed = indexes.length > 1;
-  if (update.onConflict === 'replace') {
-    const content = [
-      ...adfDescription(update.description ?? ''),
-      ...(update.technicalSection ? [adfBlock(update.technicalSection)] : []),
-    ];
-    return { ok: true, value: { version: 1, type: 'doc', content } };
-  }
   if (malformed) {
+    if (update.onConflict === 'replace') {
+      if (update.description === undefined) return conflict(REPLACE_NEEDS_DESCRIPTION);
+      const content = [
+        ...adfDescription(update.description),
+        ...(update.technicalSection ? [adfBlock(update.technicalSection)] : []),
+      ];
+      return { ok: true, value: { version: 1, type: 'doc', content } };
+    }
     if (update.onConflict !== 'append') return conflict();
     return {
       ok: true,
@@ -207,6 +223,12 @@ export function mergeAdf(
         ],
       },
     };
+  }
+  if (indexes.length === 1 && update.description === undefined && update.technicalSection) {
+    const content = doc.content.map((node, index) =>
+      index === indexes[0] ? adfBlock(update.technicalSection as string) : node,
+    );
+    return { ok: true, value: { ...doc, version: 1, type: 'doc', content } };
   }
   const existingBlock = indexes.length === 1 ? doc.content[indexes[0]] : undefined;
   const prose = doc.content.filter((_, index) => index !== indexes[0]);
