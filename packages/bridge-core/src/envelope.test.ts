@@ -3,7 +3,6 @@ import {
   ENVELOPE_DECODERS,
   MAX_DESCRIPTION_LENGTH,
   MAX_SUBJECT_LENGTH,
-  MAX_TECHNICAL_SECTION_LENGTH,
   SUPPORTED_PROTOCOL_VERSIONS,
   decodeEnvelope,
 } from './envelope.js';
@@ -17,8 +16,6 @@ const update = {
   issueId: 'ISSUE-1',
   subject: 'Broken login',
   description: 'Steps to reproduce',
-  technicalSection: 'Browser: Chromium',
-  idempotencyKey: 'command-1',
 };
 
 describe('command envelope v1', () => {
@@ -33,8 +30,6 @@ describe('command envelope v1', () => {
         issueId: 'ISSUE-1',
         subject: 'Broken login',
         description: 'Steps to reproduce',
-        technicalSection: 'Browser: Chromium',
-        idempotencyKey: 'command-1',
       },
     });
   });
@@ -72,38 +67,11 @@ describe('command envelope v1', () => {
         tracker_instance_id: 't',
         type: 'update_issue',
         issueId: 'X',
-        idempotencyKey: 'k',
       }),
     ).toMatchObject({ ok: false, error: { code: 'invalid_command' } });
-    expect(
-      decodeEnvelope({ ...update, onConflict: 'replace', description: undefined }),
-    ).toMatchObject({
-      ok: false,
-      error: { code: 'invalid_command' },
-    });
   });
 
-  it('accepts the defined onConflict combinations and rejects undefined values', () => {
-    const { technicalSection: _technicalSection, ...withoutTechnicalSection } = update;
-    expect(
-      decodeEnvelope({ ...update, onConflict: 'append', technicalSection: 'replacement block' }),
-    ).toMatchObject({ ok: true });
-    expect(decodeEnvelope({ ...update, onConflict: 'append', technicalSection: '' })).toMatchObject(
-      { ok: true },
-    );
-    expect(decodeEnvelope({ ...withoutTechnicalSection, onConflict: 'replace' })).toMatchObject({
-      ok: true,
-    });
-    expect(
-      decodeEnvelope({ ...update, onConflict: 'replace', technicalSection: '' }),
-    ).toMatchObject({ ok: true });
-    expect(decodeEnvelope({ ...update, onConflict: undefined })).toMatchObject({
-      ok: false,
-      error: { code: 'invalid_command' },
-    });
-  });
-
-  it('enforces text limits while allowing technical-section deletion', () => {
+  it('enforces text limits', () => {
     expect(
       decodeEnvelope({ ...update, subject: 'x'.repeat(MAX_SUBJECT_LENGTH + 1) }),
     ).toMatchObject({
@@ -116,9 +84,5 @@ describe('command envelope v1', () => {
       ok: false,
       error: { code: 'invalid_command' },
     });
-    expect(
-      decodeEnvelope({ ...update, technicalSection: 'x'.repeat(MAX_TECHNICAL_SECTION_LENGTH + 1) }),
-    ).toMatchObject({ ok: false, error: { code: 'invalid_command' } });
-    expect(decodeEnvelope({ ...update, technicalSection: '' })).toMatchObject({ ok: true });
   });
 });

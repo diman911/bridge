@@ -8,7 +8,6 @@ const meta = {
   issueId: 'APP-42',
   filename: 'capture.har',
   contentType: 'application/x-http-archive',
-  idempotencyKey: 'attachment-1',
 };
 
 describe('attachment meta v1', () => {
@@ -22,7 +21,6 @@ describe('attachment meta v1', () => {
         issueId: 'APP-42',
         filename: 'capture.har',
         contentType: 'application/x-http-archive',
-        idempotencyKey: 'attachment-1',
       },
     });
   });

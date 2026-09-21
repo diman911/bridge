@@ -7,8 +7,6 @@ const command: ConnectorCommand = {
   type: 'create_issue',
   subject: 'T',
   description: 'D',
-  technicalSection: 'Technical details',
-  idempotencyKey: 'test-1',
 };
 const capabilities = {
   protocolVersion: PROTOCOL_VERSION,
@@ -23,11 +21,11 @@ describe('bridge-core contract', () => {
   it('lets a minimal in-memory Connector implementation type-check and run', async () => {
     const connector: Connector = {
       capabilities,
-      execute(input: ConnectorCommand): Promise<IntegrationResult> {
-        return Promise.resolve({ idempotencyKey: input.idempotencyKey, ok: true });
+      execute(_input: ConnectorCommand): Promise<IntegrationResult> {
+        return Promise.resolve({ ok: true });
       },
     };
     const result = await connector.execute(command, { signal: new AbortController().signal });
-    expect(result).toEqual({ idempotencyKey: 'test-1', ok: true });
+    expect(result).toEqual({ ok: true });
   });
 });

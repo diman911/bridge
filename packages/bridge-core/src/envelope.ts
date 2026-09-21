@@ -2,7 +2,6 @@ import type { IntegrationError } from './types.js';
 
 export const MAX_SUBJECT_LENGTH = 32_768;
 export const MAX_DESCRIPTION_LENGTH = 32_768;
-export const MAX_TECHNICAL_SECTION_LENGTH = 32_768;
 /**
  * Maximum encoded JSON request size for commands and reads. This is a
  * transport safety limit, not the retired report-envelope limit.
@@ -23,21 +22,17 @@ interface InternalCommandBase {
   protocolVersion: 1;
   projectId: string;
   trackerInstanceId: string;
-  idempotencyKey: string;
 }
 export interface InternalCreateIssueCommand extends InternalCommandBase {
   type: 'create_issue';
   subject: string;
   description: string;
-  technicalSection?: string;
 }
 export interface InternalUpdateIssueCommand extends InternalCommandBase {
   type: 'update_issue';
   issueId: string;
   subject?: string;
   description?: string;
-  technicalSection?: string;
-  onConflict?: 'append' | 'replace';
 }
 export type InternalIntegrationCommand = InternalCreateIssueCommand | InternalUpdateIssueCommand;
 export type DecodeResult =
@@ -76,22 +71,14 @@ export function decodeEnvelopeV1(value: unknown): DecodeResult {
     return fail('unsupported_protocol_version', 'envelope protocolVersion 1 is required');
   const projectId = requiredString(value, 'project_id');
   const trackerInstanceId = requiredString(value, 'tracker_instance_id');
-  const idempotencyKey = requiredString(value, 'idempotencyKey');
-  if (!projectId || !trackerInstanceId || !idempotencyKey)
-    return fail(
-      'invalid_envelope',
-      'project_id, tracker_instance_id, and idempotencyKey are required',
-    );
+  if (!projectId || !trackerInstanceId)
+    return fail('invalid_envelope', 'project_id and tracker_instance_id are required');
   if (value.type !== 'create_issue' && value.type !== 'update_issue')
     return fail('invalid_envelope', 'type must be create_issue or update_issue');
 
-  const technicalSection = optionalText(value, 'technicalSection', MAX_TECHNICAL_SECTION_LENGTH);
-  if (technicalSection === null)
-    return invalidText('technicalSection', MAX_TECHNICAL_SECTION_LENGTH);
-
   if (value.type === 'create_issue') {
-    if (has(value, 'issueId') || has(value, 'onConflict'))
-      return fail('invalid_command', 'issueId and onConflict are not valid for create_issue');
+    if (has(value, 'issueId'))
+      return fail('invalid_command', 'issueId is not valid for create_issue');
     const subject = requiredString(value, 'subject');
     if (!subject || subject.length > MAX_SUBJECT_LENGTH)
       return fail(
@@ -110,8 +97,6 @@ export function decodeEnvelopeV1(value: unknown): DecodeResult {
         type: 'create_issue',
         subject,
         description,
-        ...(technicalSection === undefined ? {} : { technicalSection }),
-        idempotencyKey,
       },
     };
   }
@@ -126,14 +111,8 @@ export function decodeEnvelopeV1(value: unknown): DecodeResult {
     );
   const description = optionalText(value, 'description', MAX_DESCRIPTION_LENGTH);
   if (description === null) return invalidText('description', MAX_DESCRIPTION_LENGTH);
-  const onConflict = value.onConflict;
-  if (has(value, 'onConflict') && onConflict !== 'append' && onConflict !== 'replace')
-    return fail('invalid_command', 'onConflict must be append or replace');
-  if (onConflict === 'replace' && description === undefined)
-    return fail('invalid_command', 'description is required when onConflict is replace');
-  if (subject === undefined && description === undefined && technicalSection === undefined)
+  if (subject === undefined && description === undefined)
     return fail('invalid_command', 'update_issue must contain at least one mutation');
-  const validOnConflict = onConflict as 'append' | 'replace' | undefined;
   return {
     ok: true,
     value: {
@@ -144,9 +123,6 @@ export function decodeEnvelopeV1(value: unknown): DecodeResult {
       issueId,
       ...(subject === undefined ? {} : { subject }),
       ...(description === undefined ? {} : { description }),
-      ...(technicalSection === undefined ? {} : { technicalSection }),
-      ...(validOnConflict === undefined ? {} : { onConflict: validOnConflict }),
-      idempotencyKey,
     },
   };
 }

@@ -59,7 +59,6 @@ export interface AttachmentWarning {
 }
 
 export interface IntegrationResult {
-  idempotencyKey: string;
   /** Reflects the issue mutation only; attachments are uploaded separately. */
   ok: boolean;
   /** Provider issue identifier, required by the subsequent attachment route. */

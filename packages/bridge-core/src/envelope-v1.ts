@@ -3,14 +3,12 @@ interface CommandEnvelopeV1 {
   protocolVersion: number;
   project_id: string;
   tracker_instance_id: string;
-  idempotencyKey: string;
 }
 
 export interface CreateIssueCommandV1 extends CommandEnvelopeV1 {
   type: 'create_issue';
   subject: string;
   description: string;
-  technicalSection?: string;
 }
 
 export interface UpdateIssueCommandV1 extends CommandEnvelopeV1 {
@@ -18,8 +16,6 @@ export interface UpdateIssueCommandV1 extends CommandEnvelopeV1 {
   issueId: string;
   subject?: string;
   description?: string;
-  technicalSection?: string;
-  onConflict?: 'append' | 'replace';
 }
 
 export type EnvelopeV1 = CreateIssueCommandV1 | UpdateIssueCommandV1;

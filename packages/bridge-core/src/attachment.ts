@@ -10,7 +10,6 @@ export interface AttachmentMeta {
   issueId: string;
   filename: string;
   contentType: string;
-  idempotencyKey: string;
 }
 
 export type AttachmentMetaDecodeResult =
@@ -41,14 +40,12 @@ export function decodeAttachmentMetaV1(value: unknown): AttachmentMetaDecodeResu
   const issueId = required(input, 'issueId');
   const filename = required(input, 'filename');
   const contentType = required(input, 'contentType');
-  const idempotencyKey = required(input, 'idempotencyKey');
-  if (!projectId || !trackerInstanceId || !issueId || !filename || !contentType || !idempotencyKey)
+  if (!projectId || !trackerInstanceId || !issueId || !filename || !contentType)
     return {
       ok: false,
       error: {
         code: 'invalid_attachment_meta',
-        message:
-          'project_id, tracker_instance_id, issueId, filename, contentType, and idempotencyKey are required',
+        message: 'project_id, tracker_instance_id, issueId, filename, and contentType are required',
       },
     };
   if (filename.includes('/') || filename.includes('\\') || filename === '.' || filename === '..')
@@ -65,7 +62,6 @@ export function decodeAttachmentMetaV1(value: unknown): AttachmentMetaDecodeResu
       issueId,
       filename,
       contentType,
-      idempotencyKey,
     },
   };
 }
@@ -76,7 +72,6 @@ export interface ConnectorAttachment {
   filename: string;
   contentType: string;
   data: ReadableStream<Uint8Array>;
-  idempotencyKey: string;
   /** Shared state set by the bounded multipart stream before it errors. */
   limitState: { exceeded: boolean; actualBytes: number };
 }

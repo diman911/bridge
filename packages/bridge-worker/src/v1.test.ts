@@ -21,8 +21,7 @@ const connector: Connector = {
     supportedActions: ['create_issue', 'update_issue'],
     verdictMappings: {},
   },
-  execute: async (command) => ({
-    idempotencyKey: command.idempotencyKey,
+  execute: async () => ({
     ok: true,
     issueUrl: 'https://tracker.example.test/browse/APP-43',
   }),
@@ -67,7 +66,6 @@ const attachmentMeta = {
   issueId: 'APP-42',
   filename: 'capture.har',
   contentType: 'application/x-http-archive',
-  idempotencyKey: 'attachment-1',
 };
 
 describe('v1 frozen contract fixtures', () => {
@@ -135,7 +133,7 @@ describe('v1 frozen contract fixtures', () => {
       ...connector,
       execute: async (command) => {
         seen.push(command);
-        return { idempotencyKey: command.idempotencyKey, ok: true };
+        return { ok: true };
       },
     };
     const capturingWorker = createEnvelopeBridgeWorker({
@@ -179,34 +177,6 @@ describe('v1 frozen contract fixtures', () => {
     );
     expect(response.status).toBe(422);
     expect(await response.json()).toMatchObject({ error: { code: 'unsupported_action' } });
-  });
-
-  it('maps a connector description conflict to HTTP 409', async () => {
-    const conflicting: Connector = {
-      ...connector,
-      execute: async (command) => ({
-        idempotencyKey: command.idempotencyKey,
-        ok: false,
-        error: { code: 'description_conflict', message: 'managed block is malformed' },
-      }),
-    };
-    const conflictingWorker = createEnvelopeBridgeWorker({
-      connectors: new Map([['fixture', () => conflicting]]),
-    });
-    const body = await readFile(join(contract, 'request-update-issue.json'), 'utf8');
-    const response = await conflictingWorker.fetch(
-      new Request('https://bridge.example.test/v1/commands', {
-        method: 'POST',
-        headers: { authorization: 'Bearer fairlead-token' },
-        body,
-      }),
-      env,
-      {} as ExecutionContext,
-    );
-    expect(response.status).toBe(409);
-    expect(await response.json()).toMatchObject({
-      error: { code: 'description_conflict' },
-    });
   });
 
   it('authenticates before decoding the command', async () => {
@@ -306,7 +276,7 @@ describe('unsupported protocol version', () => {
     );
 
   it.each([
-    ['/v1/commands', { type: 'create_issue', subject: 'S', description: 'D', idempotencyKey: 'k' }],
+    ['/v1/commands', { type: 'create_issue', subject: 'S', description: 'D' }],
     ['/v1/reads', { operation: { type: 'fetch', id: '1' } }],
   ])('answers 400 unsupported_protocol_version on %s', async (path, payload) => {
     const response = await post(
@@ -403,7 +373,6 @@ describe('POST /v1/attachments', () => {
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      idempotencyKey: attachmentMeta.idempotencyKey,
       filename: attachmentMeta.filename,
       ok: true,
     });

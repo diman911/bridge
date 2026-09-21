@@ -319,7 +319,6 @@ export function createEnvelopeBridgeWorker(
               if (!result.ok && result.error?.code === 'attachment_too_large')
                 return response(
                   {
-                    idempotencyKey: meta.idempotencyKey,
                     error: {
                       code: 'attachment_too_large',
                       message: result.error.message,
@@ -329,10 +328,7 @@ export function createEnvelopeBridgeWorker(
                   },
                   413,
                 );
-              return response(
-                { idempotencyKey: meta.idempotencyKey, ...result },
-                result.ok ? 200 : 422,
-              );
+              return response(result, result.ok ? 200 : 422);
             },
           );
         } catch (cause) {
@@ -374,21 +370,16 @@ export function createEnvelopeBridgeWorker(
               const connector = connectorFor(dependencies, credential, signal);
               if (isResponse(connector)) return connector;
               const rejected = unsupported(connector, command.type);
-              if (rejected)
-                return { idempotencyKey: command.idempotencyKey, ok: false, error: rejected };
+              if (rejected) return { ok: false, error: rejected };
               return connector.execute(toConnectorCommand(command), { signal });
             },
           );
           if (isResponse(result)) return result;
-          return response(
-            notify(routing.version, result),
-            result.ok ? 200 : result.error?.code === 'description_conflict' ? 409 : 422,
-          );
+          return response(notify(routing.version, result), result.ok ? 200 : 422);
         } catch (cause) {
           const timeout = timedOut(cause);
           return response(
             notify(routing.version, {
-              idempotencyKey: command.idempotencyKey,
               ok: false,
               error: timeout
                 ? {

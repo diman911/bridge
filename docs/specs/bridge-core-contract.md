@@ -9,12 +9,11 @@ describes the current shape, not why it looks this way.
 ## Protocol version
 
 The public write wire format is `EnvelopeV1` in `src/envelope-v1.ts`, a union of
-two commands. `create_issue` carries `subject`, `description` and optional
-`technicalSection`; `update_issue` carries `issueId`, optional `subject`,
-`description`, `technicalSection` and `onConflict` (`append` | `replace`). Both
-carry `protocolVersion`, `project_id`, `tracker_instance_id` and
-`idempotencyKey`, and never a caller identity, connector identity, connector
-configuration or report body. `decodeEnvelope()` selects a registered version
+two commands. `create_issue` carries `subject` and `description`; `update_issue`
+carries `issueId` and optional `subject` and `description`. Both carry
+`protocolVersion`, `project_id` and `tracker_instance_id`, and never a caller
+identity, connector identity, connector configuration or report body.
+`decodeEnvelope()` selects a registered version
 decoder and maps the wire command to `InternalIntegrationCommand` (camel-cased
 trusted routing fields). `SUPPORTED_PROTOCOL_VERSIONS` is the single
 compatible-version set used by `isCompatibleProtocolVersion()`. A version not in
@@ -23,8 +22,8 @@ The extension sends its own version and learns nothing about Bridge's supported
 versions in advance: every route (`/v1/commands`, `/v1/reads`, `/v1/attachments`)
 answers an unknown `protocolVersion` with `400 unsupported_protocol_version`.
 
-`MAX_SUBJECT_LENGTH`, `MAX_DESCRIPTION_LENGTH` and `MAX_TECHNICAL_SECTION_LENGTH`
-(32 768 characters each) are enforced while decoding. JSON command and read
+`MAX_SUBJECT_LENGTH` and `MAX_DESCRIPTION_LENGTH` (32 768 characters each) are
+enforced while decoding. JSON command and read
 bodies are read incrementally up to `MAX_JSON_REQUEST_BYTES` (256 KiB), a
 transport safety limit. A version listed in `DEPRECATED_PROTOCOL_VERSIONS` still
 answers normally; its `DeprecationNotice` (`successorVersion`, `endOfSupportAt`,
@@ -39,11 +38,11 @@ test replays every request fixture in every stored version directory.
 
 ## Routes
 
-| Route                  | Body                                                 | Result                                  |
-| ---------------------- | ---------------------------------------------------- | --------------------------------------- |
-| `POST /v1/commands`    | JSON `create_issue` / `update_issue`                 | `IntegrationResult`                     |
-| `POST /v1/reads`       | JSON search / fetch operation                        | `ReadResult`                            |
-| `POST /v1/attachments` | `multipart/form-data`: `meta` JSON part + one `file` | `AttachmentResult` (+ `idempotencyKey`) |
+| Route                  | Body                                                 | Result              |
+| ---------------------- | ---------------------------------------------------- | ------------------- |
+| `POST /v1/commands`    | JSON `create_issue` / `update_issue`                 | `IntegrationResult` |
+| `POST /v1/reads`       | JSON search / fetch operation                        | `ReadResult`        |
+| `POST /v1/attachments` | `multipart/form-data`: `meta` JSON part + one `file` | `AttachmentResult`  |
 
 All three require a Bearer identity token.
 
@@ -61,32 +60,19 @@ Every connector must pass the supplied abort signal to abortable provider
 requests. A timeout remains an unknown provider-side outcome: an aborted
 client request cannot prove that a provider mutation did not complete.
 
-### Managed block and update merge
+### Description updates
 
-`src/description.ts` owns the provider formatters, so the block logic is not
-repeated per connector: `mergeAdf` (Jira), `mergeMarkdown` (GitHub) and
-`mergeHtml` (Azure DevOps). The technical section is stored as a managed
-"fairlead" block: fenced Markdown with info string `fairlead` on GitHub, a
-`<pre><code class="language-fairlead">` block in Azure DevOps HTML, and a `codeBlock`
-with language `fairlead` in Jira ADF.
-
-On `update_issue` the connector reads the existing issue and merges:
-
-- intact block → replaced with `technicalSection`; no block → appended;
-- omitted `description` edits only the block and `subject` (Jira ADF is kept);
-- malformed block → `409 description_conflict`; the caller retries with
-  `onConflict`. `append` keeps the malformed text and adds a block only for a
-  non-empty `technicalSection`. `replace` requires `description` and replaces
-  the whole description, adding a block only for a non-empty `technicalSection`;
-- an omitted `technicalSection` leaves the block untouched, an empty one removes it.
-
-Jira also refuses to update an issue outside its configured project.
+When an `update_issue` command includes `description`, it replaces the provider
+description. An omitted `description` leaves it unchanged. Connectors convert
+the supplied text to the provider representation: Markdown for GitHub, ADF for
+Jira and HTML for Azure DevOps. Jira also refuses to update an issue outside its
+configured project.
 
 ### Attachments
 
 Attachments never travel with a command. `POST /v1/attachments` takes a bounded
 `meta` part (`MAX_ATTACHMENT_META_BYTES`, 16 KiB: `protocolVersion`, `project_id`,
-`tracker_instance_id`, `issueId`, `filename`, `contentType`, `idempotencyKey`)
+`tracker_instance_id`, `issueId`, `filename`, `contentType`)
 followed by one `file` part. The Worker authenticates the token before reading
 the body, resolves the credential from `meta`, cross-checks the returned
 `caller_id`, then streams the file through an incremental size check;
@@ -146,8 +132,5 @@ tests.
 
 ## What's not yet in this contract
 
-- Idempotency-key retry-safety (dedup, replay rejection) — v1 has no
-  exactly-once guarantee; see the source plan's "Future idempotency
-  invariants" for the design a later protocol version would need.
 - A `bridge-runner` (private-mode) implementation — `bridge-worker` covers
   cloud mode only.

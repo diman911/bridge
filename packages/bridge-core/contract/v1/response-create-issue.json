@@ -1,5 +1,4 @@
 {
-  "idempotencyKey": "report-789-create",
   "ok": true,
   "issueUrl": "https://tracker.example.test/browse/APP-43"
 }

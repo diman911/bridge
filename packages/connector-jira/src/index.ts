@@ -1,6 +1,5 @@
 import {
   PROTOCOL_VERSION,
-  mergeAdf,
   type Connector,
   type ConnectorCommand,
   type ConnectorExecutionOptions,
@@ -11,6 +10,20 @@ import {
   type ReadOperation,
   type ReadResult,
 } from '@fairlead/bridge-core';
+
+function toAdf(description: string) {
+  return {
+    version: 1 as const,
+    type: 'doc',
+    content: description
+      .split(/\n\n+/)
+      .filter((paragraph) => paragraph.trim())
+      .map((paragraph) => ({
+        type: 'paragraph',
+        content: [{ type: 'text', text: paragraph }],
+      })),
+  };
+}
 export interface JiraConnectorConfig {
   baseUrl: string;
   token: string;
@@ -54,15 +67,12 @@ export class JiraConnector implements Connector {
     o: ConnectorExecutionOptions,
   ): Promise<IntegrationResult> {
     const fail = (code: string, message: string): IntegrationResult => ({
-      idempotencyKey: command.idempotencyKey,
       ok: false,
       error: { code, message },
     });
     const { type } = command;
     let key: string;
     if (type === 'create_issue') {
-      const merged = mergeAdf(null, command);
-      if (!merged.ok) return fail(merged.error.code, merged.error.message);
       const r = await this.f(`${this.base}/rest/api/3/issue`, {
         method: 'POST',
         headers: this.h(true),
@@ -70,7 +80,7 @@ export class JiraConnector implements Connector {
           fields: {
             project: { key: this.c.projectKey },
             summary: command.subject,
-            description: merged.value,
+            description: toAdf(command.description),
             issuetype: { name: 'Bug' },
           },
         }),
@@ -81,30 +91,26 @@ export class JiraConnector implements Connector {
     } else {
       key = command.issueId;
       const url = `${this.base}/rest/api/3/issue/${encodeURIComponent(key)}`;
-      const current = await this.f(`${url}?fields=description,project`, {
+      const current = await this.f(`${url}?fields=project`, {
         headers: this.h(),
         signal: o.signal,
       });
       if (!current.ok)
         return fail('jira_request_failed', `${current.status} ${current.statusText}`);
       const existing = (await current.json()) as {
-        fields?: { description?: unknown; project?: { key?: string } };
+        fields?: { project?: { key?: string } };
       };
       if (existing.fields?.project?.key !== this.c.projectKey)
         return fail('issue_outside_project', 'issue is outside configured Jira project');
-      const changesDescription =
-        command.description !== undefined || command.technicalSection !== undefined;
-      const merged = changesDescription
-        ? mergeAdf(existing.fields?.description, command)
-        : undefined;
-      if (merged && !merged.ok) return fail(merged.error.code, merged.error.message);
       const r = await this.f(url, {
         method: 'PUT',
         headers: this.h(true),
         body: JSON.stringify({
           fields: {
             ...(command.subject === undefined ? {} : { summary: command.subject }),
-            ...(merged?.ok ? { description: merged.value } : {}),
+            ...(command.description === undefined
+              ? {}
+              : { description: toAdf(command.description) }),
           },
         }),
         signal: o.signal,
@@ -112,7 +118,6 @@ export class JiraConnector implements Connector {
       if (!r.ok) return fail('jira_request_failed', `${r.status} ${r.statusText}`);
     }
     return {
-      idempotencyKey: command.idempotencyKey,
       ok: true,
       issueId: key,
       issueUrl: `${this.base}/browse/${key}`,

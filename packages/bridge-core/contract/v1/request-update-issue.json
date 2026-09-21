@@ -5,7 +5,5 @@
   "type": "update_issue",
   "issueId": "APP-42",
   "subject": "Checkout fails after applying a discount",
-  "description": "Updated user-visible summary.",
-  "technicalSection": "URL: https://app.example.test\nErrors: 1",
-  "idempotencyKey": "report-789-update"
+  "description": "Updated user-visible summary."
 }

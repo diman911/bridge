@@ -6,8 +6,6 @@ export type ConnectorCommand =
       type: 'create_issue';
       subject: string;
       description: string;
-      technicalSection?: string;
-      idempotencyKey: string;
     }
   | {
       protocolVersion: number;
@@ -15,9 +13,6 @@ export type ConnectorCommand =
       issueId: string;
       subject?: string;
       description?: string;
-      technicalSection?: string;
-      onConflict?: 'append' | 'replace';
-      idempotencyKey: string;
     };
 
 export function toConnectorCommand(command: InternalIntegrationCommand): ConnectorCommand {

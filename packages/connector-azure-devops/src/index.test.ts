@@ -30,7 +30,6 @@ describe('AzureDevOpsConnector', () => {
       type: 'create_issue',
       subject: 'Title',
       description: '',
-      idempotencyKey: 'k',
     };
     expect(
       await connector.execute(command, { signal: new AbortController().signal }),
@@ -72,7 +71,6 @@ describe('AzureDevOpsConnector', () => {
       filename: 'capture.har',
       contentType: 'application/x-http-archive',
       data: new Blob(['bytes']).stream(),
-      idempotencyKey: 'k',
       limitState: { exceeded: false, actualBytes: 5 },
     };
     expect(
@@ -81,35 +79,6 @@ describe('AzureDevOpsConnector', () => {
       ok: true,
     });
     expect(methods).toEqual(['GET', 'POST', 'PATCH', 'DELETE']);
-  });
-
-  it('returns description_conflict for malformed managed HTML', async () => {
-    let writes = 0;
-    const connector = new AzureDevOpsConnector({
-      organization: 'acme',
-      project: 'app',
-      token: 't',
-      fetch: (async (_url: string, init?: RequestInit) => {
-        if (init?.method) writes++;
-        return Response.json({
-          fields: { 'System.Description': '<pre><code class="language-fairlead">unclosed' },
-        });
-      }) as typeof fetch,
-    });
-    const command: ConnectorCommand = {
-      protocolVersion: 1,
-      type: 'update_issue',
-      issueId: '12',
-      technicalSection: 'replacement',
-      idempotencyKey: 'k',
-    };
-    expect(
-      await connector.execute(command, { signal: new AbortController().signal }),
-    ).toMatchObject({
-      ok: false,
-      error: { code: 'description_conflict' },
-    });
-    expect(writes).toBe(0);
   });
 
   it('guards relation removal with a revision test', async () => {
@@ -140,7 +109,6 @@ describe('AzureDevOpsConnector', () => {
         filename: 'a.har',
         contentType: 'application/octet-stream',
         data: new Blob(['bytes']).stream(),
-        idempotencyKey: 'k',
         limitState: { exceeded: false, actualBytes: 5 },
       },
       { signal: new AbortController().signal },

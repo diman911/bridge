@@ -22,10 +22,7 @@ export type {
   AttachmentMetaDecodeResult,
   ConnectorAttachment,
 } from './attachment.js';
-export {
-  MAX_ATTACHMENT_META_BYTES,
-  decodeAttachmentMetaV1,
-} from './attachment.js';
+export { MAX_ATTACHMENT_META_BYTES, decodeAttachmentMetaV1 } from './attachment.js';
 export type {
   EnvelopeV1,
   CreateIssueCommandV1,
@@ -44,7 +41,6 @@ export {
   DEPRECATED_PROTOCOL_VERSIONS,
   MAX_SUBJECT_LENGTH,
   MAX_DESCRIPTION_LENGTH,
-  MAX_TECHNICAL_SECTION_LENGTH,
   MAX_JSON_REQUEST_BYTES,
   ENVELOPE_DECODERS,
   decodeEnvelopeV1,
@@ -52,11 +48,4 @@ export {
 } from './envelope.js';
 export type { ConnectorCommand } from './command.js';
 export { toConnectorCommand } from './command.js';
-export type {
-  DescriptionUpdate,
-  DescriptionMergeResult,
-  AdfNode,
-  AdfDocument,
-} from './description.js';
-export { mergeMarkdown, mergeHtml, mergeAdf } from './description.js';
 export { mapWithConcurrency } from './concurrency.js';

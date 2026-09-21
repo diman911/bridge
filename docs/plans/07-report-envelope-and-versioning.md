@@ -65,28 +65,19 @@ Bridge never receives a `Report`. It receives text and files.
 
 **`POST /v1/commands`** (JSON) — two commands:
 
-| Field                 | `create_issue` | `update_issue` | Notes                                                                 |
-| --------------------- | -------------- | -------------- | --------------------------------------------------------------------- |
-| `protocolVersion`     | ✔              | ✔              |                                                                       |
-| `project_id`          | ✔              | ✔              | from the extension's session                                          |
-| `tracker_instance_id` | ✔              | ✔              | from CP routing data                                                  |
-| `type`                | `create_issue` | `update_issue` |                                                                       |
-| `issueId`             | —              | ✔              | provider issue key/number                                             |
-| `subject`             | ✔              | optional       | max length per `bridge-core` constant                                 |
-| `description`         | ✔              | optional       | Markdown, user-authored; provider conversion is Bridge's job          |
-| `technicalSection`    | optional       | optional       | Markdown body of the Fairlead block (see "Managed block" below)       |
-| `onConflict`          | —              | optional       | `append` \| `replace`; only on retry after `409 description_conflict` |
-| `idempotencyKey`      | ✔              | ✔              | observability only in v1 (no deduplication)                           |
-
-`technicalSection` is the one field beyond subject/description. It exists so
-the block can be replaced without touching the user's text — the extension
-regenerates it on every submit, while the user's description is often
-unchanged.
-
-**`POST /v1/attachments`** (`multipart/form-data`) — one file per request:
+| Field                                                                      | `create_issue` | `update_issue` | Notes                                                        |
+| -------------------------------------------------------------------------- | -------------- | -------------- | ------------------------------------------------------------ |
+| `protocolVersion`                                                          | ✔              | ✔              |                                                              |
+| `project_id`                                                               | ✔              | ✔              | from the extension's session                                 |
+| `tracker_instance_id`                                                      | ✔              | ✔              | from CP routing data                                         |
+| `type`                                                                     | `create_issue` | `update_issue` |                                                              |
+| `issueId`                                                                  | —              | ✔              | provider issue key/number                                    |
+| `subject`                                                                  | ✔              | optional       | max length per `bridge-core` constant                        |
+| `description`                                                              | ✔              | optional       | Markdown, user-authored; provider conversion is Bridge's job |
+| **`POST /v1/attachments`** (`multipart/form-data`) — one file per request: |
 
 - Part `meta` (JSON): `protocolVersion`, `project_id`, `tracker_instance_id`,
-  `issueId`, `filename`, `contentType`, `idempotencyKey`.
+  `issueId`, `filename`, `contentType`.
 - Part `file`: the bytes.
 - Idempotent by `(issue, filename)`: uploading the same filename to the same
   issue replaces the earlier file. This also covers re-submits after an
@@ -103,20 +94,10 @@ unchanged.
 carries `id`, `title`, `url`, `status?` and (on fetch) `description?`; no
 provider-native raw description or attachment listing is exposed.
 
-**Managed block.** The Fairlead technical block is a fenced Markdown block
-whose info string is `fairlead` — the marker the extension already writes
-(Jira ADF `codeBlock` with language `fairlead`, GitHub fenced block), so
-issues filed by the current extension stay editable. On `update_issue`
-Bridge reads the existing issue and:
-
-| Existing issue state               | Behaviour                                                        |
-| ---------------------------------- | ---------------------------------------------------------------- |
-| Intact block                       | Replace the block with `technicalSection`; leave everything else |
-| No block                           | Append a new block                                               |
-| Malformed block (unclosed, nested) | `409 description_conflict`; caller may retry with `onConflict`   |
-
-Jira ADF is preserved: when `description` is omitted Bridge edits only the
-block node and `subject`; when present it replaces the non-block content.
+**Description updates.** `description` is the complete user-authored issue
+body. On update, an omitted value leaves the provider description unchanged;
+a supplied value replaces it. Bridge converts the text into the provider's
+native representation.
 
 **Limits.** Text fields have length limits; each attachment has
 `MAX_ATTACHMENT_BYTES`. Both are named constants in `bridge-core`, measured

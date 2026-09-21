@@ -1,6 +1,5 @@
 import {
   PROTOCOL_VERSION,
-  mergeHtml,
   type Connector,
   type ConnectorCommand,
   type ConnectorExecutionOptions,
@@ -11,6 +10,17 @@ import {
   type ConnectorAttachmentOptions,
   type AttachmentResult,
 } from '@fairlead/bridge-core';
+
+function toHtml(description: string): string {
+  return description
+    .split(/\n\n+/)
+    .filter((paragraph) => paragraph.trim())
+    .map(
+      (paragraph) =>
+        `<p>${paragraph.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</p>`,
+    )
+    .join('');
+}
 export interface AzureDevOpsConnectorConfig {
   token: string;
   organization: string;
@@ -58,7 +68,6 @@ export class AzureDevOpsConnector implements Connector {
   }
   async execute(c: ConnectorCommand, o: ConnectorExecutionOptions): Promise<IntegrationResult> {
     const fail = (code: string, message: string): IntegrationResult => ({
-      idempotencyKey: c.idempotencyKey,
       ok: false,
       error: { code, message },
     });
@@ -66,26 +75,13 @@ export class AzureDevOpsConnector implements Connector {
     const itemUrl = create
       ? undefined
       : `${this.base}/_apis/wit/workitems/${encodeURIComponent(c.issueId)}?api-version=7.1`;
-    const changesDescription = c.description !== undefined || c.technicalSection !== undefined;
-    let existing = '';
-    if (itemUrl && changesDescription) {
-      const current = await this.f(`${itemUrl}&fields=System.Description`, {
-        headers: { Authorization: this.auth(), Accept: 'application/json' },
-        signal: o.signal,
-      });
-      if (!current.ok) return fail('azure_devops_request_failed', String(current.status));
-      existing =
-        ((await current.json()) as { fields?: { 'System.Description'?: string } }).fields?.[
-          'System.Description'
-        ] ?? '';
-    }
-    const merged = changesDescription ? mergeHtml(existing, c) : undefined;
-    if (merged && !merged.ok) return fail(merged.error.code, merged.error.message);
     const op = create ? 'add' : 'replace';
     const patch = [
       ...(create ? [{ op: 'add', path: '/fields/System.WorkItemType', value: 'Bug' }] : []),
       ...(c.subject === undefined ? [] : [{ op, path: '/fields/System.Title', value: c.subject }]),
-      ...(merged?.ok ? [{ op, path: '/fields/System.Description', value: merged.value }] : []),
+      ...(c.description === undefined
+        ? []
+        : [{ op, path: '/fields/System.Description', value: toHtml(c.description) }]),
     ];
     const r = await this.f(itemUrl ?? `${this.base}/_apis/wit/workitems/$Bug?api-version=7.1`, {
       method: create ? 'POST' : 'PATCH',
@@ -96,7 +92,6 @@ export class AzureDevOpsConnector implements Connector {
     if (!r.ok) return fail('azure_devops_request_failed', String(r.status));
     const d = (await r.json()) as { id: number; url: string };
     return {
-      idempotencyKey: c.idempotencyKey,
       ok: true,
       issueId: String(d.id),
       issueUrl: this.webUrl(d.id),

@@ -4,7 +4,5 @@
   "tracker_instance_id": "tracker-456",
   "type": "create_issue",
   "subject": "Checkout fails after applying a discount",
-  "description": "The user-visible summary supplied by the reporter.",
-  "technicalSection": "URL: https://app.example.test\nErrors: 1",
-  "idempotencyKey": "report-789-create"
+  "description": "The user-visible summary supplied by the reporter."
 }

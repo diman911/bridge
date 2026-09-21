@@ -16,9 +16,8 @@ runConnectorConformanceTests((): Connector => ({
   },
   execute: async (command) =>
     command.type === 'create_issue'
-      ? { idempotencyKey: command.idempotencyKey, ok: true }
+      ? { ok: true }
       : {
-          idempotencyKey: command.idempotencyKey,
           ok: false,
           error: { code: 'unsupported_action', message: 'not supported' },
         },

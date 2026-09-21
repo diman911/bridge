@@ -30,8 +30,6 @@ describe('GithubConnector', () => {
       type: 'create_issue',
       subject: 'Title',
       description: 'Description',
-      technicalSection: 'Browser: Chromium',
-      idempotencyKey: 'k',
     };
     expect(
       await connector.execute(command, { signal: new AbortController().signal }),
@@ -65,7 +63,6 @@ describe('GithubConnector', () => {
       filename: 'capture.har',
       contentType: 'application/x-http-archive',
       data: new Blob(['bytes']).stream(),
-      idempotencyKey: 'k',
       limitState: { exceeded: false, actualBytes: 5 },
     };
     expect(
@@ -74,32 +71,5 @@ describe('GithubConnector', () => {
       ok: true,
     });
     expect(bodies[0]).toMatchObject({ branch: 'evidence', sha: 'old-sha' });
-  });
-
-  it('returns description_conflict for an unclosed Fairlead fence', async () => {
-    let writes = 0;
-    const connector = new GithubConnector({
-      owner: 'acme',
-      repo: 'app',
-      token: 't',
-      fetch: (async (_url: string, init?: RequestInit) => {
-        if (init?.method) writes++;
-        return Response.json({ body: 'User text\n\n```fairlead\nunclosed' });
-      }) as typeof fetch,
-    });
-    const command: ConnectorCommand = {
-      protocolVersion: 1,
-      type: 'update_issue',
-      issueId: '7',
-      technicalSection: 'replacement',
-      idempotencyKey: 'k',
-    };
-    expect(
-      await connector.execute(command, { signal: new AbortController().signal }),
-    ).toMatchObject({
-      ok: false,
-      error: { code: 'description_conflict' },
-    });
-    expect(writes).toBe(0);
   });
 });

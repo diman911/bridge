@@ -26,8 +26,6 @@ export function runConnectorConformanceTests(makeConnector: () => Connector): vo
           type: action,
           subject: 'Conformance title',
           description: 'Conformance description',
-          technicalSection: 'Conformance technical section',
-          idempotencyKey: 'conformance-test-key',
         }
       : {
           protocolVersion: connector.capabilities.protocolVersion,
@@ -35,8 +33,6 @@ export function runConnectorConformanceTests(makeConnector: () => Connector): vo
           issueId: 'conformance-test-id',
           subject: 'Conformance title',
           description: 'Conformance description',
-          technicalSection: 'Conformance technical section',
-          idempotencyKey: 'conformance-test-key',
         };
 
   describe('bridge-core connector conformance', () => {
@@ -55,7 +51,6 @@ export function runConnectorConformanceTests(makeConnector: () => Connector): vo
       const connector = makeConnector();
       const built = command(connector, connector.capabilities.supportedActions[0]);
       const result = await connector.execute(built, { signal: new AbortController().signal });
-      expect(result.idempotencyKey).toBe(built.idempotencyKey);
       expect(typeof result.ok).toBe('boolean');
     });
 

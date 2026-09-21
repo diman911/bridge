@@ -9,5 +9,4 @@ export interface AttachmentMetaV1 {
   issueId: string;
   filename: string;
   contentType: string;
-  idempotencyKey: string;
 }

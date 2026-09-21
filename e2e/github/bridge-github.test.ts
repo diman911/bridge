@@ -43,7 +43,6 @@ describe.skipIf(!token || !owner || !repo)('e2e: local Bridge + local CP + real 
         type: 'create_issue',
         project_id: servers.seed.projectId,
         tracker_instance_id: servers.seed.githubIntegrationInstanceId,
-        idempotencyKey: `bridge-e2e-${suffix}`,
         subject: title,
         description,
       }),

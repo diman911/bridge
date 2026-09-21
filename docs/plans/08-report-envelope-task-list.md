@@ -21,8 +21,8 @@ design was dropped (07, "History"). What survives and what does not:
 | Version set + `isCompatibleProtocolVersion`, decoder registry, response metadata          | **Keep** (D1)                                               |
 | Frozen fixtures and replay tests (`contract/v1/`)                                         | **Keep the mechanism**, replace fixtures (B9)               |
 | CP-derived identity, `connectorId` check removed, authenticate-before-decode              | **Keep** (D3)                                               |
-| Description merge helpers (`description.ts`: Markdown/HTML/ADF)                           | **Keep**, adapt to the managed block (B11)                  |
-| Connectors on the internal command model, update reads existing issue and merges          | **Keep**, change the input model (B9, B11)                  |
+| Description merge helpers (`description.ts`: Markdown/HTML/ADF)                           | **Remove**; descriptions are complete replacements          |
+| Connectors on the internal command model, update reads existing issue and merges          | **Keep**, change the input model (B9)                       |
 | Separate attachment deadline, parallel uploads                                            | **Keep the ideas**, rebuild on an uploaded-bytes path (B12) |
 | `report` field in the envelope, report decoding, `mapReportToIssue`, `MAX_ENVELOPE_BYTES` | **Remove** (B9, B10)                                        |
 | Attachments generated from the report                                                     | **Replace** with uploaded bytes (B12)                       |
@@ -31,8 +31,8 @@ design was dropped (07, "History"). What survives and what does not:
 
 - [x] **B9 — Reshape wire types and decoder.** Depends on: none.
   - `create_issue` / `update_issue` commands per 07 D2: `subject`,
-    `description`, `technicalSection`, `issueId`, `onConflict`,
-    `idempotencyKey`, `project_id`, `tracker_instance_id`, `protocolVersion`.
+    `description`, `issueId`, `project_id`, `tracker_instance_id`,
+    `protocolVersion`.
     No `report`, `options`, `connectorId`, `projectContext`, `callerId`.
   - Wire-only types stay in a file the extension can vendor verbatim.
   - Internal command model updated accordingly.
@@ -45,20 +45,6 @@ design was dropped (07, "History"). What survives and what does not:
   - Delete report decoding, report → issue mapping, report schema-version
     constants and envelope-size constants; update exports.
   - Keep the text-length limits.
-- [x] **B11 — Managed block semantics.** Depends on: B9.
-  - Block = fenced Markdown with info string `fairlead` (compatible with
-    issues filed by the current extension).
-  - `update_issue`: intact block → replace; no block → append; malformed
-    block → `409 description_conflict`; retry with `onConflict`
-    (`append` | `replace`).
-  - Omitted `description` edits only the block and `subject` (Jira ADF
-    preserved).
-  - `onConflict: append` preserves malformed text and appends a block only
-    when `technicalSection` is non-empty. `onConflict: replace` requires
-    `description` and replaces the complete description, adding a block only
-    when a non-empty `technicalSection` is present. An omitted section leaves
-    the block untouched in the normal path; an empty section removes it.
-  - Tests per provider (Jira ADF, GitHub Markdown, Azure DevOps HTML).
 - [x] **B12 — `POST /v1/attachments`.** Depends on: B9, control-plane C3.
   - `multipart/form-data`: `meta` JSON part + `file` part, one file per
     request; validate `meta` (version, project, tracker instance, issue id,
@@ -95,11 +81,6 @@ design was dropped (07, "History"). What survives and what does not:
   - Done: `attachmentSignal`, `IntegrationResult.attachments` and
     `IssueSummary.description` removed; the worker has a single deadline.
 
-## Follow-ups
-
-- Attachments are idempotent by filename (replace); commands still have no
-  deduplication by `idempotencyKey` (v1 decision).
-
 ## External dependencies (other repos)
 
 All three below are delivered in control-plane `e5ea258` (`CpRpc.authenticateBridgeIdentity`,
@@ -121,5 +102,5 @@ the shapes match what `bridge-worker` calls.
 
 ## Order
 
-`B9` first. Then `B10`, `B11`, `B12`, `B13` in parallel. `B14` after `B12`.
+`B9` first. Then `B10`, `B12`, `B13` in parallel. `B14` after `B12`.
 `B15` alongside.

@@ -213,7 +213,6 @@ export class AttachmentMultipartReader {
       filename: meta.filename,
       contentType: meta.contentType,
       data,
-      idempotencyKey: meta.idempotencyKey,
       limitState: state,
     };
   }
