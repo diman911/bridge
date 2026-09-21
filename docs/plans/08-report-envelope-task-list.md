@@ -1,6 +1,6 @@
 # 08 — Task list: report-envelope contract (bridge repo)
 
-**Status:** in progress
+**Status:** done (B6/B8 landed; open follow-ups below)
 **Source design:** [07-report-envelope-and-versioning.md](07-report-envelope-and-versioning.md) (accepted), [chrome-extension ADR-011](../../../chrome-extension/docs/architecture/decisions/ADR-011-report-to-bridge.md)
 **Counterpart list:** [chrome-extension `docs/plans/bridge-report-envelope-tasks.md`](../../../chrome-extension/docs/plans/bridge-report-envelope-tasks.md)
 
@@ -47,7 +47,7 @@ lands; details and rationale stay in 07.
     record; derive caller from the verified token.
   - Remove the `command.connectorId !== capabilities.connectorId` check.
   - Return `deprecation` for versions inside their end-of-support window.
-- [ ] **B6 — Connectors 03–05 on the internal model.** Depends on: B1, B4.
+- [x] **B6 — Connectors 03–05 on the internal model.** Depends on: B1, B4.
   - Jira, GitHub, Azure DevOps take the internal model, not the old
     `IntegrationCommand`.
   - Update flow: connector reads the existing issue and merges (Jira ADF
@@ -58,7 +58,7 @@ lands; details and rationale stay in 07.
 - [x] **B7 — Measure the Worker request-body limit.** Depends on: none.
   - Confirm the limit for the deployed plan and set `MAX_ENVELOPE_BYTES`
     from it (ADR-011, decision 5).
-- [ ] **B8 — Specs and plan hygiene.** Depends on: B1–B6 as they land.
+- [x] **B8 — Specs and plan hygiene.** Depends on: B1–B6 as they land.
   - Update `docs/specs/bridge-core-contract.md` to the shipped envelope.
   - Update the cloud deployment runbook for new routes.
   - Revisit `IssueSummary.rawDescription` / `attachments` (added for the
@@ -66,6 +66,15 @@ lands; details and rationale stay in 07.
   - Correct the status in `02-bridge-worker.md` (code exists; the file
     still says "not started").
   - Retire the old field-level `IntegrationCommand` once nothing uses it.
+
+## Follow-ups (not part of B1–B8)
+
+- B5's `deprecation` metadata is defined but never returned; wire it when the
+  first version enters an end-of-support window.
+- The envelope is decoded and validated before credential resolution; consider
+  authenticating first to keep unauthenticated callers from forcing a 10 MB parse.
+- A retried `update_issue` is idempotent for the description (the block is
+  replaced), but attachments are re-uploaded; connectors do not dedupe by key.
 
 ## External dependencies (other repos)
 

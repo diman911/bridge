@@ -31,7 +31,7 @@ that customer's own network/VPN.
 ## Status
 
 Repository scaffold only. `packages/bridge-core` holds a first draft of the
-command/connector contract (`IntegrationCommand`, `Connector`,
+command/connector contract (envelope v1, `ConnectorCommand`, `Connector`,
 `ConnectorCapabilities`). None of `bridge-worker`, `bridge-runner`,
 `connector-jira`, `connector-github`, or any Log Source connector exist yet
 — see the "Portable implementation shape" section of the linked plan for
@@ -46,7 +46,7 @@ Sibling repositories under `../` (same parent directory):
 | Repo                  | Role                                                                                                                                             |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `../chrome-extension` | Chrome extension (Fairlead Recorder) — owns capture, user verdict, evidence selection, and the `direct` transport (no-auth built-in Jira/GitHub) |
-| `../control-plane`    | Auth, org/project config, token issuance — will own Bridge enrollment, routing (`bridge_id`), and policy                                        |
+| `../control-plane`    | Auth, org/project config, token issuance — will own Bridge enrollment, routing (`bridge_id`), and policy                                         |
 | `../data-plane`       | Sanitized evidence storage — this repo references evidence by URL, never stores or copies it                                                     |
 | `../ticket-enricher`  | AI bug-description generation from a recorded session — unrelated concern (enrichment, not filing); do not conflate with this repo               |
 
@@ -72,7 +72,7 @@ store raw captures or copies of tracker issues — see the linked plan's
 ## Module map
 
 | Path                    | Responsibility                                                                                                       |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `packages/bridge-core/` | Command/result types, `Connector` interface, (future) validation and routing — the only package with real code today |
 
 ## Where to look next

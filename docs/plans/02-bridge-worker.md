@@ -9,8 +9,8 @@
 
 The one platform-wide `cloud`-mode Bridge instance every organization's
 SaaS tracker routes through (source plan, "Routing and configuration" —
-"Bridge cardinality"). Nothing in this package exists yet — only
-`bridge-core` is scaffolded.
+"Bridge cardinality"). The package now exists (`packages/bridge-worker`, serving `/v1/commands`
+and `/v1/reads`); this plan was written when only `bridge-core` was scaffolded.
 
 ## Task
 

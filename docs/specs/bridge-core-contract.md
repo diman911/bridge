@@ -26,22 +26,48 @@ published end of support.
 Frozen wire examples live in `packages/bridge-core/contract/v1/`. The decoder
 test replays every request fixture in every stored version directory.
 
-## Write path: `IntegrationCommand` → `IntegrationResult`
+## Write path: `ConnectorCommand` → `IntegrationResult`
 
-`Connector.execute(command, { signal })`. Every connector must pass the supplied abort signal to abortable provider requests. A timeout remains an unknown provider-side outcome: an aborted client request cannot prove that a provider mutation did not complete.
-`IntegrationAction` in `src/types.ts` for the full enums — `TargetReference`
-covers `issue | test_case | test_run | incident | none`; only `issue` has a
-v1 connector implementation (see the source plan's "Extensibility reserved
-now, not implemented"). `IntegrationAction` includes `transition_issue` as
-distinct from `update_issue` for the same reason — reserved, not yet
-implemented by any v1 connector.
+`Connector.execute(command, { signal })` takes a `ConnectorCommand`
+(`src/report-mapping.ts`), which `mapReportToIssue()` derives from the decoded
+envelope: `intent`, `title`, the user-authored `description`,
+`technicalContext` (URL, recording window, counts), `artifacts` (the HAR and
+screenshot files selected by `options`), and `idempotencyKey`. It carries no
+caller, connector id or report body; Bridge resolves those from the Control
+Plane record and the verified token. `ConnectorCapabilities.supportedActions`
+is a subset of `EnvelopeIntent['action']` (`create_issue`, `update_issue`,
+`add_comment`); the Worker answers an undeclared action with
+`unsupported_action` (422) and connectors do the same when called directly.
+Only `issue` targets have a v1 connector implementation.
+
+Every connector must pass the supplied abort signal to abortable provider
+requests. A timeout remains an unknown provider-side outcome: an aborted
+client request cannot prove that a provider mutation did not complete.
+
+### Description rendering and update merge
+
+`src/description.ts` owns the provider formatters, so the marker logic is not
+repeated per connector: `mergeAdf` (Jira), `mergeMarkdown` (GitHub) and
+`mergeHtml` (Azure DevOps). The Fairlead technical block is delimited by
+`<!-- fairlead:begin -->` / `<!-- fairlead:end -->` in Markdown and HTML, and by
+a `panel` whose first node is the "Fairlead technical context" heading in ADF.
+On `update_issue` the connector reads the existing issue, replaces the block
+(never appends a second one), keeps every node outside it as the tracker holds
+it, and replaces that prose with the envelope `description` only when its text
+differs from what is already there. `title` always overwrites. Jira also
+refuses to update an issue outside its configured project.
+
+### Results
 
 `IntegrationResult.ok` reflects the target mutation only.
-`IntegrationResult.attachments` (`AttachmentResult[]`) carries independent
-`IntegrationError.httpStatus` is limited to retry-safe upstream statuses (`429`, `502`, `503`, `504`); `retryable: true` maps to `503` when no status is supplied. The Worker validates the status at runtime as well as through TypeScript.
+`IntegrationResult.attachments` (`AttachmentResult[]`, one per artifact, keyed
+by `filename`) carries independent per-file outcomes: a command can be
+`ok: true` with one or more failed attachments (partial success, decided
+2026-09-21 in the source plan).
 
-per-file outcomes — a command can be `ok: true` with one or more failed
-attachments (partial success, decided 2026-09-21 in the source plan).
+`IntegrationError.httpStatus` is limited to retry-safe upstream statuses
+(`429`, `502`, `503`, `504`); `retryable: true` maps to `503` when no status is
+supplied.
 
 ## Read path: `ReadOperation` → `ReadResult`
 
@@ -50,25 +76,23 @@ write-only connector need not implement it; every v1 issue-tracker
 connector does). `ReadOperation` is `{ type: 'search', query, ... } |
 { type: 'fetch', id, ... }`. `ReadResult.issues` (search) /
 `ReadResult.issue` (fetch) use the shared `IssueSummary` shape
-(`id`, `title`, `url`, `status?`) plus optional fetch-only fields
-`description?`, `rawDescription?` (provider-native, e.g. Jira ADF) and
-`attachments?` (`IssueAttachmentSummary[]`) so the extension's edit flow can
-round-trip an issue. Additive — no protocol version bump.
+(`id`, `title`, `url`, `status?`, `description?`). Additive — no protocol
+version bump.
 
 ## Validation
 
-`validateIntegrationCommand()` (`src/validation.ts`) checks shape and
-protocol-version compatibility only — it does not check whether the
-_specific_ resolved connector supports the command's target/action; that's
-a `ConnectorCapabilities` check the caller (`bridge-worker`) makes
-separately against the connector it resolved.
+Shape validation happens once, in the envelope decoder (`decodeEnvelope()`),
+which also decodes the report. Whether the _specific_ resolved connector
+supports the intent's action is a `ConnectorCapabilities` check
+`bridge-worker` makes against the connector it resolved.
 
 ## Conformance testing
 
 `@fairlead/bridge-core/conformance`'s `runConnectorConformanceTests()`
 is a vitest suite factory a connector package's own test file calls
 against its `Connector` implementation. Checks contract-level shape
-(protocol version, non-empty capabilities, a round-trip `execute()` call)
+(protocol version, non-empty capabilities, a round-trip `execute()` call, a typed
+`unsupported_action` for an undeclared action)
 — not provider-specific correctness, which belongs in that connector's own
 tests.
 
@@ -77,5 +101,5 @@ tests.
 - Idempotency-key retry-safety (dedup, replay rejection) — v1 has no
   exactly-once guarantee; see the source plan's "Future idempotency
   invariants" for the design a later protocol version would need.
-- A `bridge-worker`/`bridge-runner` implementation — this package is the
-  contract only, not an executable Bridge.
+- A `bridge-runner` (private-mode) implementation — `bridge-worker` covers
+  cloud mode only.
