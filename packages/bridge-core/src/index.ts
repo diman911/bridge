@@ -9,6 +9,7 @@ export type {
   IntegrationResult,
   ReadOperation,
   IssueSummary,
+  IssueAttachmentSummary,
   ReadResult,
 } from './types.js';
 export { PROTOCOL_VERSION, isCompatibleProtocolVersion } from './types.js';

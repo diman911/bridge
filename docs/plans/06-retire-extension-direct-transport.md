@@ -1,6 +1,6 @@
 # 06 — Retire the extension's `direct` transport for Jira/GitHub
 
-**Status:** not started
+**Status:** 06a done (2026-09-21, uncommitted) — 06b not started
 **Depends on:** [01-stabilize-contract.md](01-stabilize-contract.md), [02-bridge-worker.md](02-bridge-worker.md), [03-connector-jira.md](03-connector-jira.md), [04-connector-github.md](04-connector-github.md)
 **Related:** [chrome-extension plan — "Decision", "Delivery phases"](../../../chrome-extension/docs/plans/integration-connector-gateway.md), [chrome-extension `docs/specs/issue-tracker-integration.md`](../../../chrome-extension/docs/specs/issue-tracker-integration.md)
 
@@ -53,3 +53,21 @@ because the vendoring decision below is this repo's to make.
 - [ ] Azure DevOps ships with no `direct`-transport code in
       `chrome-extension` at any point.
 - [ ] `docs/specs/issue-tracker-integration.md` updated to match.
+
+## Staging
+
+- **06a** (needs only 01): vendored contract + `Connector` adapters over the
+  existing clients; `direct` unchanged. Landed in `chrome-extension`
+  (`src/infrastructure/bridge-contract/`, `adapters/connectors/`). Required
+  one additive contract change first: `IssueSummary` gained optional
+  `description`, `rawDescription`, `attachments` (no protocol bump).
+- **06b** (needs 02+03+04): switch call sites to Bridge, retire `direct`, ADO UI.
+
+### Open for 06b (not covered by the contract today)
+
+- Jira ADF-preserving update (`buildUpdatedAdfDescription`) — decide whether the
+  merge moves into `connector-jira` or the extension sends a fully built body.
+- Attachment list/delete and GitHub branch upload — under Bridge, attachments
+  become `data_plane_reference` uploads (product behavior change, not a refactor).
+- Connection test (`testGithubConnection`) — maps to the connector's
+  credential-validity check; no contract operation yet.

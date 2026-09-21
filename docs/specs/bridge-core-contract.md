@@ -39,7 +39,10 @@ write-only connector need not implement it; every v1 issue-tracker
 connector does). `ReadOperation` is `{ type: 'search', query, ... } |
 { type: 'fetch', id, ... }`. `ReadResult.issues` (search) /
 `ReadResult.issue` (fetch) use the shared `IssueSummary` shape
-(`id`, `title`, `url`, `status?`).
+(`id`, `title`, `url`, `status?`) plus optional fetch-only fields
+`description?`, `rawDescription?` (provider-native, e.g. Jira ADF) and
+`attachments?` (`IssueAttachmentSummary[]`) so the extension's edit flow can
+round-trip an issue. Additive — no protocol version bump.
 
 ## Validation
 

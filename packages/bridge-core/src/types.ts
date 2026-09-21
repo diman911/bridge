@@ -116,6 +116,21 @@ export interface IssueSummary {
   title: string;
   url: string;
   status?: string;
+  /**
+   * Additive fields populated by `fetch` (never required by `search`), so the
+   * extension's edit flow can round-trip an issue without a provider-specific
+   * client. Extensions must tolerate their absence.
+   */
+  /** Plain-text description for display, with any Fairlead-authored section stripped. */
+  description?: string;
+  /** Provider-native description (string, or a structured document such as Jira ADF), for lossless re-edit. */
+  rawDescription?: string | Record<string, unknown>;
+  attachments?: IssueAttachmentSummary[];
+}
+
+export interface IssueAttachmentSummary {
+  id: string;
+  filename: string;
 }
 
 export interface ReadResult {
