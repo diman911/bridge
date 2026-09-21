@@ -1,5 +1,10 @@
 import { isCompatibleProtocolVersion } from './types.js';
-import type { IntegrationAction, IntegrationCommand, IntegrationError, TargetReference } from './types.js';
+import type {
+  IntegrationAction,
+  IntegrationCommand,
+  IntegrationError,
+  TargetReference,
+} from './types.js';
 
 const TARGET_KINDS: ReadonlyArray<TargetReference['kind']> = [
   'issue',
@@ -72,6 +77,17 @@ export function validateIntegrationCommand(
   }
   if (!command.connectorId) {
     return err('missing_connector_id', 'connectorId is required');
+  }
+  for (const [field, value] of [
+    ['title', command.title],
+    ['description', command.description],
+  ] as const) {
+    if (value !== undefined && typeof value !== 'string') {
+      return err(`invalid_${field}`, `${field} must be a string`);
+    }
+    if (typeof value === 'string' && value.length > 32_768) {
+      return err(`invalid_${field}`, `${field} must not exceed 32768 characters`);
+    }
   }
   return { ok: true };
 }

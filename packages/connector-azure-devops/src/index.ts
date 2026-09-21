@@ -211,7 +211,7 @@ export class AzureDevOpsConnector implements Connector {
         Accept: 'application/json',
       },
       body: JSON.stringify({
-        query: `SELECT [System.Id] FROM WorkItems WHERE [System.Title] CONTAINS '${q}'`,
+        query: `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project AND [System.Title] CONTAINS '${q}'`,
       }),
     });
     if (!wiql.ok)
