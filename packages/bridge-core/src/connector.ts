@@ -25,6 +25,12 @@ export interface ConnectorCapabilities {
 export interface ConnectorExecutionOptions {
   /** Connector implementations must pass this to every abortable provider request. */
   signal: AbortSignal;
+  /**
+   * Separate budget for uploading attachments after the issue mutation has
+   * succeeded. A timeout here must surface as a failed attachment, never as a
+   * failed command, because the issue already exists. Defaults to `signal`.
+   */
+  attachmentSignal?: AbortSignal;
 }
 export type ConnectorReadOptions = ConnectorExecutionOptions;
 

@@ -81,4 +81,40 @@ describe('AzureDevOpsConnector.execute', () => {
     expect(description.startsWith('<p>Kept</p>')).toBe(true);
     expect(description.split('Fairlead technical context')).toHaveLength(2);
   });
+
+  it('links all uploaded files with a single PATCH and reports a failed upload separately', async () => {
+    const patches: string[] = [];
+    const connector = new AzureDevOpsConnector({
+      organization: 'acme',
+      project: 'app',
+      token: 't',
+      fetch: (async (url: string, init?: RequestInit) => {
+        const method = init?.method ?? 'GET';
+        if (method === 'GET') return Response.json({ fields: {} });
+        if (url.includes('/attachments'))
+          return url.includes('bad.png')
+            ? new Response('', { status: 500 })
+            : Response.json({ url: `https://ado/att/${url.includes('a.png') ? 1 : 2}` });
+        patches.push(String(init?.body));
+        return Response.json({ id: 12, url: 'u' });
+      }) as typeof fetch,
+    });
+    const file = (filename: string) => ({
+      filename,
+      contentType: 'image/png',
+      data: new Uint8Array([1]),
+    });
+    const result = await connector.execute(
+      { ...command, artifacts: [file('a.png'), file('bad.png'), file('c.png')] },
+      { signal: new AbortController().signal },
+    );
+    expect(result.attachments?.map((a) => [a.filename, a.ok])).toEqual([
+      ['a.png', true],
+      ['bad.png', false],
+      ['c.png', true],
+    ]);
+    // one PATCH for the description, one linking both uploaded files
+    expect(patches).toHaveLength(2);
+    expect(JSON.parse(patches[1])).toHaveLength(2);
+  });
 });

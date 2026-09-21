@@ -1,5 +1,6 @@
 import {
   PROTOCOL_VERSION,
+  mapWithConcurrency,
   mergeAdf,
   type Connector,
   type ConnectorCommand,
@@ -108,9 +109,9 @@ export class JiraConnector implements Connector {
       });
       if (!r.ok) return fail('jira_request_failed', `${r.status} ${r.statusText}`);
     }
-    const attachments: AttachmentResult[] = [];
-    for (const artifact of command.artifacts)
-      attachments.push(await this.attach(key, artifact, o.signal));
+    const attachments = await mapWithConcurrency(command.artifacts, 3, (artifact) =>
+      this.attach(key, artifact, o.attachmentSignal ?? o.signal),
+    );
     return {
       idempotencyKey: command.idempotencyKey,
       ok: true,

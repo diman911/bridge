@@ -87,8 +87,11 @@ export class GithubConnector implements Connector {
     if (!r.ok) return fail('github_request_failed', `${r.status} ${r.statusText}`);
     const d = (await r.json()) as { number: number; html_url: string };
     const attachments: AttachmentResult[] = [];
+    // Sequential on purpose: concurrent Contents API commits to one branch conflict (409).
     for (const artifact of c.artifacts)
-      attachments.push(await this.attach(String(d.number), artifact, o.signal));
+      attachments.push(
+        await this.attach(String(d.number), artifact, o.attachmentSignal ?? o.signal),
+      );
     return {
       idempotencyKey: c.idempotencyKey,
       ok: true,

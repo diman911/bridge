@@ -54,6 +54,17 @@ describe('description merge', () => {
     expect(count(JSON.stringify(second), 'Fairlead technical context')).toBe(1);
   });
 
+  it('adf: keeps single newlines as hard breaks', () => {
+    const doc = mergeAdf(null, 'one\ntwo\n\nthree', context);
+    expect(doc.content[0].content).toEqual([
+      { type: 'text', text: 'one' },
+      { type: 'hardBreak' },
+      { type: 'text', text: 'two' },
+    ]);
+    expect(doc.content[1].content).toEqual([{ type: 'text', text: 'three' }]);
+    expect(mergeAdf(doc, 'one\ntwo\n\nthree', context).content).toHaveLength(3);
+  });
+
   it('adf: builds a document when the issue has no description', () => {
     expect(mergeAdf(null, 'Hello', context).content[0]).toMatchObject({ type: 'paragraph' });
   });

@@ -57,6 +57,16 @@ it, and replaces that prose with the envelope `description` only when its text
 differs from what is already there. `title` always overwrites. Jira also
 refuses to update an issue outside its configured project.
 
+### Timeouts and attachments
+
+`ConnectorExecutionOptions.signal` covers the requests that read or mutate the
+issue. `attachmentSignal` is a later, separate deadline for evidence uploads
+(the Worker gives it the same length again): a slow upload becomes a failed
+`AttachmentResult`, never a failed command, so a retry cannot duplicate an
+issue that was already created. Jira uploads up to three files in parallel;
+Azure DevOps uploads in parallel and links them with one PATCH; GitHub stays
+sequential because concurrent Contents API commits to one branch conflict.
+
 ### Results
 
 `IntegrationResult.ok` reflects the target mutation only.

@@ -37,3 +37,4 @@ export type { ReportArtifact, ConnectorCommand } from './report-mapping.js';
 export type { TechnicalContext, AdfNode, AdfDocument } from './description.js';
 export { TECHNICAL_HEADING, mergeMarkdown, mergeHtml, mergeAdf } from './description.js';
 export { mapReportToIssue } from './report-mapping.js';
+export { mapWithConcurrency } from './concurrency.js';

@@ -18,6 +18,7 @@ import type {
 } from './index.js';
 
 export const DEFAULT_REQUEST_TIMEOUT_SECONDS = 15;
+const BACKSTOP_GRACE_MS = 2000;
 type ErrorBody = { error: IntegrationError };
 type ReadEnvelope = {
   protocolVersion: number;
@@ -108,26 +109,45 @@ function requestTimeoutSeconds(resolved: ResolvedBridgeCredential): number {
     ? value
     : DEFAULT_REQUEST_TIMEOUT_SECONDS;
 }
+/**
+ * `signal` covers the request(s) that mutate or read; `attachmentSignal` is a
+ * second, later deadline for evidence uploads, so a slow upload can neither
+ * cancel a mutation that already succeeded nor turn it into a 504. The backstop
+ * sits a little past the attachment deadline, letting connectors report late
+ * uploads as failed attachments first.
+ */
 async function executeWithinTimeout<T>(
   timeoutSeconds: number,
-  work: (signal: AbortSignal) => Promise<T>,
+  attachmentSeconds: number,
+  work: (signal: AbortSignal, attachmentSignal: AbortSignal) => Promise<T>,
 ): Promise<T> {
   const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  const attachments = new AbortController();
+  const timers: ReturnType<typeof setTimeout>[] = [];
   const timeout = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(() => {
-      controller.abort();
-      reject(new Error('request_timeout'));
-    }, timeoutSeconds * 1000);
+    timers.push(setTimeout(() => controller.abort(), timeoutSeconds * 1000));
+    timers.push(setTimeout(() => attachments.abort(), (timeoutSeconds + attachmentSeconds) * 1000));
+    timers.push(
+      setTimeout(
+        () => {
+          controller.abort();
+          reject(new Error('request_timeout'));
+        },
+        (timeoutSeconds + attachmentSeconds) * 1000 + BACKSTOP_GRACE_MS,
+      ),
+    );
   });
   try {
-    return await Promise.race([work(controller.signal), timeout]);
+    return await Promise.race([work(controller.signal, attachments.signal), timeout]);
   } finally {
-    if (timer !== undefined) clearTimeout(timer);
+    timers.forEach(clearTimeout);
   }
 }
+/** The mutation deadline aborts provider requests, which surfaces as an AbortError. */
 function timedOut(cause: unknown): boolean {
-  return cause instanceof Error && cause.message === 'request_timeout';
+  return (
+    cause instanceof Error && (cause.message === 'request_timeout' || cause.name === 'AbortError')
+  );
 }
 function unsupported(
   connector: Connector,
@@ -194,13 +214,14 @@ export function createEnvelopeBridgeWorker(
         try {
           const result = await executeWithinTimeout(
             requestTimeoutSeconds(credential),
-            async (signal): Promise<IntegrationResult | Response> => {
+            requestTimeoutSeconds(credential),
+            async (signal, attachmentSignal): Promise<IntegrationResult | Response> => {
               const connector = connectorFor(dependencies, credential, signal);
               if (isResponse(connector)) return connector;
               const rejected = unsupported(connector, command.intent.action);
               if (rejected)
                 return { idempotencyKey: command.idempotencyKey, ok: false, error: rejected };
-              return connector.execute(mapReportToIssue(command), { signal });
+              return connector.execute(mapReportToIssue(command), { signal, attachmentSignal });
             },
           );
           if (isResponse(result)) return result;
@@ -240,6 +261,7 @@ export function createEnvelopeBridgeWorker(
       try {
         return await executeWithinTimeout(
           requestTimeoutSeconds(credential),
+          0,
           async (signal): Promise<Response> => {
             const connector = connectorFor(dependencies, credential, signal);
             if (isResponse(connector)) return connector;

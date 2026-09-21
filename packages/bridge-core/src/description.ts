@@ -140,6 +140,15 @@ function isFairleadBlock(node: AdfNode): boolean {
   return node.type === 'panel' && first?.type === 'heading' && adfText(first) === TECHNICAL_HEADING;
 }
 const textNode = (text: string): AdfNode => ({ type: 'text', text });
+/** A paragraph's lines joined by hard breaks, so single newlines survive in Jira. */
+function inlineNodes(paragraph: string): AdfNode[] {
+  return paragraph
+    .split('\n')
+    .flatMap((line, index) => [
+      ...(index > 0 ? [{ type: 'hardBreak' }] : []),
+      ...(line ? [textNode(line)] : []),
+    ]);
+}
 
 /**
  * Jira: `existing` is the issue's ADF description (or null/absent when creating
@@ -174,7 +183,7 @@ export function mergeAdf(
     ? prose
     : paragraphs(description).map((paragraph) => ({
         type: 'paragraph',
-        content: [textNode(paragraph)],
+        content: inlineNodes(paragraph),
       }));
   return { ...doc, version: 1, type: 'doc', content: [...body, block] };
 }
