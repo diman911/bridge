@@ -41,8 +41,8 @@ not new design.
   fail an otherwise-successful issue creation.
 - Credential-validity check: `GET /user` (source plan, "Protocol v1
   scope").
-- Capability manifest: `supportedTargets: ['issue']`,
-  `supportedActions: ['create_issue', 'update_issue']` plus search/fetch —
+- Capability manifest: `targets.issue` with actions `create`/`update`, reads
+  `fetch`/`search` and `attachments` —
   not `transition_issue`/test-case targets (reserved, not implemented).
 
 ## Acceptance criteria

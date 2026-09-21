@@ -16,6 +16,15 @@ export type {
   ConnectorExecutionOptions,
   ConnectorAttachmentOptions,
 } from './connector.js';
+export type {
+  TargetKind,
+  TargetActionMap,
+  TargetCapabilities,
+  ConnectorTargets,
+  ReadKind,
+  CommandOperation,
+} from './capabilities.js';
+export { COMMAND_OPERATION, supportsCommand, supportsRead } from './capabilities.js';
 export { MAX_ATTACHMENT_BYTES, type AttachmentMetaV1 } from './attachment-v1.js';
 export type {
   AttachmentMeta,

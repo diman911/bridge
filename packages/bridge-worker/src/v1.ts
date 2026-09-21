@@ -6,6 +6,7 @@ import {
   MAX_ATTACHMENT_BYTES,
   PROTOCOL_VERSION,
   decodeEnvelope,
+  supportsCommand,
   toConnectorCommand,
   type Connector,
   type CommandType,
@@ -201,7 +202,7 @@ function unsupported(connector: Connector, action: CommandType): IntegrationErro
       code: 'connector_protocol_mismatch',
       message: 'resolved connector has an incompatible protocol version',
     };
-  return connector.capabilities.supportedActions.includes(action)
+  return supportsCommand(connector.capabilities.targets, action)
     ? null
     : { code: 'unsupported_action', message: `connector does not support action ${action}` };
 }

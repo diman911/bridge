@@ -1,6 +1,7 @@
 import {
   PROTOCOL_VERSION,
   type Connector,
+  type ConnectorCapabilities,
   type ConnectorCommand,
   type ConnectorExecutionOptions,
   type IntegrationResult,
@@ -29,13 +30,17 @@ export interface AzureDevOpsConnectorConfig {
   fetch?: typeof fetch;
 }
 export class AzureDevOpsConnector implements Connector {
-  readonly capabilities = {
+  readonly capabilities: ConnectorCapabilities = {
     protocolVersion: PROTOCOL_VERSION,
     connectorId: 'azure_devops',
     displayName: 'Azure DevOps',
-    supportedTargets: ['issue'] as 'issue'[],
-    supportedActions: ['create_issue', 'update_issue'] as ('create_issue' | 'update_issue')[],
-    verdictMappings: {},
+    targets: {
+      issue: {
+        actions: ['create', 'update'],
+        reads: ['fetch', 'search'],
+        attachments: true,
+      },
+    },
   };
   private readonly f: typeof fetch;
   private readonly base: string;

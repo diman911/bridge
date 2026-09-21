@@ -1,6 +1,7 @@
 import {
   PROTOCOL_VERSION,
   type Connector,
+  type ConnectorCapabilities,
   type ConnectorCommand,
   type ConnectorExecutionOptions,
   type IntegrationResult,
@@ -25,13 +26,17 @@ function base64(bytes: Uint8Array): string {
   return btoa(text);
 }
 export class GithubConnector implements Connector {
-  readonly capabilities = {
+  readonly capabilities: ConnectorCapabilities = {
     protocolVersion: PROTOCOL_VERSION,
     connectorId: 'github',
     displayName: 'GitHub Issues',
-    supportedTargets: ['issue'] as 'issue'[],
-    supportedActions: ['create_issue', 'update_issue'] as ('create_issue' | 'update_issue')[],
-    verdictMappings: {},
+    targets: {
+      issue: {
+        actions: ['create', 'update'],
+        reads: ['fetch', 'search'],
+        attachments: true,
+      },
+    },
   };
   private f;
   private base;

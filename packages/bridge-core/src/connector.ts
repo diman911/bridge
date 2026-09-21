@@ -1,14 +1,7 @@
 import type { ConnectorCommand } from './command.js';
 import type { ConnectorAttachment } from './attachment.js';
-import type { CommandType } from './envelope-v1.js';
-import type {
-  IntegrationResult,
-  Outcome,
-  ReadOperation,
-  ReadResult,
-  AttachmentResult,
-  TargetReference,
-} from './types.js';
+import type { ConnectorTargets } from './capabilities.js';
+import type { IntegrationResult, ReadOperation, ReadResult, AttachmentResult } from './types.js';
 
 /**
  * What a connector supports, rendered by the extension into a generic UI —
@@ -19,10 +12,8 @@ export interface ConnectorCapabilities {
   protocolVersion: number;
   connectorId: string;
   displayName: string;
-  supportedTargets: TargetReference['kind'][];
-  supportedActions: CommandType[];
-  /** Maps a generic Outcome to the connector's own status/verdict vocabulary. */
-  verdictMappings: Partial<Record<Outcome, string>>;
+  /** Capabilities per target; a missing key means the target is unsupported. */
+  targets: ConnectorTargets;
 }
 export interface ConnectorExecutionOptions {
   /** Connector implementations must pass this to every abortable provider request. */

@@ -1,6 +1,7 @@
 import {
   PROTOCOL_VERSION,
   type Connector,
+  type ConnectorCapabilities,
   type ConnectorCommand,
   type ConnectorExecutionOptions,
   type IntegrationResult,
@@ -33,13 +34,17 @@ export interface JiraConnectorConfig {
   fetch?: typeof fetch;
 }
 export class JiraConnector implements Connector {
-  readonly capabilities = {
+  readonly capabilities: ConnectorCapabilities = {
     protocolVersion: PROTOCOL_VERSION,
     connectorId: 'jira',
     displayName: 'Jira Cloud',
-    supportedTargets: ['issue'] as 'issue'[],
-    supportedActions: ['create_issue', 'update_issue'] as ('create_issue' | 'update_issue')[],
-    verdictMappings: {},
+    targets: {
+      issue: {
+        actions: ['create', 'update'],
+        reads: ['fetch', 'search'],
+        attachments: true,
+      },
+    },
   };
   private base;
   private f;

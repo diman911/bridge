@@ -17,9 +17,7 @@ const connector: Connector = {
     protocolVersion: PROTOCOL_VERSION,
     connectorId: 'fixture',
     displayName: 'Fixture',
-    supportedTargets: ['issue'],
-    supportedActions: ['create_issue', 'update_issue'],
-    verdictMappings: {},
+    targets: { issue: { actions: ['create', 'update'], reads: [] } },
   },
   execute: async () => ({
     ok: true,
@@ -160,7 +158,10 @@ describe('v1 frozen contract fixtures', () => {
   it('answers an action the resolved connector does not support with 422', async () => {
     const restricted: Connector = {
       ...connector,
-      capabilities: { ...connector.capabilities, supportedActions: ['create_issue'] },
+      capabilities: {
+        ...connector.capabilities,
+        targets: { issue: { actions: ['create'], reads: [] } },
+      },
     };
     const restrictedWorker = createEnvelopeBridgeWorker({
       connectors: new Map([['fixture', () => restricted]]),

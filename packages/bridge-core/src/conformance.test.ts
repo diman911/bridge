@@ -10,9 +10,7 @@ runConnectorConformanceTests((): Connector => ({
     protocolVersion: PROTOCOL_VERSION,
     connectorId: 'conformance-fixture',
     displayName: 'Conformance Fixture',
-    supportedTargets: ['issue'],
-    supportedActions: ['create_issue'],
-    verdictMappings: {},
+    targets: { issue: { actions: ['create'], reads: [] } },
   },
   execute: async (command) =>
     command.type === 'create_issue'

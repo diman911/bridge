@@ -51,10 +51,16 @@ All three require a Bearer identity token.
 `Connector.execute(command, { signal })` takes a `ConnectorCommand`
 (`src/command.ts`): the internal command without the routing fields. It carries
 no caller, connector id or report body; Bridge resolves those from the Control
-Plane record and the verified token. `ConnectorCapabilities.supportedActions`
-is a subset of `CommandType` (`create_issue`, `update_issue`); the Worker answers
-an undeclared action with `unsupported_action` (422) and connectors do the same
-when called directly. Only `issue` targets have a v1 connector implementation.
+Plane record and the verified token. `ConnectorCapabilities.targets`
+is hierarchical: per target kind (`issue`, `test_case`, `test_run`, `incident`) it
+lists `actions` (mutations), `reads` (`fetch`/`search`) and optional
+`attachments` and `verdictMappings`. Capability actions use short domain names
+(`create`, `update`), not wire names; `COMMAND_OPERATION` maps each wire command
+(`create_issue`, ...) to its `(target, action)` pair, and `supportsCommand()`
+checks that pair. A new wire command adds one `COMMAND_OPERATION` entry; a new
+target or action is a non-breaking manifest addition. The Worker answers an
+undeclared pair with `unsupported_action` (422) and connectors do the same when
+called directly. Only `issue` targets have a v1 connector implementation.
 
 Every connector must pass the supplied abort signal to abortable provider
 requests. A timeout remains an unknown provider-side outcome: an aborted

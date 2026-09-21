@@ -39,8 +39,8 @@ in the extension and should be reused, not reinvented.
 - Credential-validity check: `GET /myself` (source plan, "Protocol v1
   scope") — cheap, non-mutating, run at profile/project-selection
   checkpoint through Bridge.
-- Capability manifest: `supportedTargets: ['issue']`,
-  `supportedActions: ['create_issue', 'update_issue']` plus search/fetch —
+- Capability manifest: `targets.issue` with actions `create`/`update`, reads
+  `fetch`/`search` and `attachments` —
   explicitly not `transition_issue`, `test_case`, etc. (reserved, not
   implemented — see task 01).
 - Credential resolution (OAuth token or pasted PAT) comes from

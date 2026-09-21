@@ -12,9 +12,7 @@ const capabilities = {
   protocolVersion: PROTOCOL_VERSION,
   connectorId: 'test-connector',
   displayName: 'Test Connector',
-  supportedTargets: ['issue' as const],
-  supportedActions: ['create_issue' as const],
-  verdictMappings: {},
+  targets: { issue: { actions: ['create' as const], reads: [] } },
 };
 
 describe('bridge-core contract', () => {

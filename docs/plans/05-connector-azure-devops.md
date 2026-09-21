@@ -64,8 +64,8 @@ Server (on-prem) is out of scope for this stage — it would need
   connector consumes a resolved bearer credential from Bridge, it does
   not perform the OAuth
   dance itself.
-- Capability manifest: `supportedTargets: ['issue']`,
-  `supportedActions: ['create_issue', 'update_issue']` plus search/fetch.
+- Capability manifest: `targets.issue` with actions `create`/`update`, reads
+  `fetch`/`search` and `attachments`.
 
 ## Open implementation question
 
