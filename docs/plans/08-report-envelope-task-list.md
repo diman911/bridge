@@ -69,10 +69,6 @@ lands; details and rationale stay in 07.
 
 ## Follow-ups (not part of B1–B8)
 
-- B5's `deprecation` metadata is defined but never returned; wire it when the
-  first version enters an end-of-support window.
-- The envelope is decoded and validated before credential resolution; consider
-  authenticating first to keep unauthenticated callers from forcing a 10 MB parse.
 - A retried `update_issue` is idempotent for the description (the block is
   replaced), but attachments are re-uploaded; connectors do not dedupe by key.
 

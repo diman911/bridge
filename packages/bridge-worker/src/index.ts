@@ -2,7 +2,7 @@ import { JiraConnector } from '@fairlead/connector-jira';
 import { GithubConnector } from '@fairlead/connector-github';
 import { AzureDevOpsConnector } from '@fairlead/connector-azure-devops';
 import { createEnvelopeBridgeWorker } from './v1.js';
-import type { Connector } from '@fairlead/bridge-core';
+import type { Connector, DeprecationNotice } from '@fairlead/bridge-core';
 
 export interface ResolvedBridgeCredential {
   /** Verified identity supplied by control-plane C3; never caller input. */
@@ -43,6 +43,8 @@ export interface BridgeWorkerEnv {
 }
 export interface BridgeWorkerDependencies {
   connectors: ReadonlyMap<string, ConnectorFactory>;
+  /** Overrides the core deprecation table; used by tests. */
+  deprecations?: ReadonlyMap<number, DeprecationNotice>;
 }
 function required(value: string | null, field: string): string {
   if (!value) throw new Error(`missing trusted connector ${field}`);

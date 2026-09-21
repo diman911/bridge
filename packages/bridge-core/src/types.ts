@@ -96,4 +96,6 @@ export interface ReadResult {
   /** Present when `ok` and the operation was `fetch`. */
   issue?: IssueSummary;
   error?: IntegrationError;
+  /** Additive response metadata for protocol lifecycle notices. */
+  metadata?: import('./envelope.js').ResponseMetadata;
 }

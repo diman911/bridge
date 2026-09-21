@@ -16,6 +16,12 @@ export interface DeprecationNotice {
   message: string;
 }
 
+/**
+ * Versions inside their end-of-support window. Empty until a successor ships;
+ * a version listed here still answers normally, with the notice attached.
+ */
+export const DEPRECATED_PROTOCOL_VERSIONS: ReadonlyMap<number, DeprecationNotice> = new Map();
+
 /** Additive metadata returned beside a command or read result. */
 export interface ResponseMetadata {
   deprecation?: DeprecationNotice;

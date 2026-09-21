@@ -19,9 +19,14 @@ envelope to `InternalIntegrationCommand` (camel-cased trusted routing fields).
 `error.code: 'unsupported_protocol_version'`, not an exception.
 
 `MAX_ENVELOPE_BYTES`, `MAX_TITLE_LENGTH`, and `MAX_DESCRIPTION_LENGTH` are
-enforced while decoding. `DeprecationNotice` may be included in
-`IntegrationResult.metadata` when a supported version is approaching its
-published end of support.
+enforced while decoding. A version listed in `DEPRECATED_PROTOCOL_VERSIONS`
+still answers normally; its `DeprecationNotice` is returned in
+`metadata.deprecation` of command and read results. The table is empty until a
+successor version ships.
+
+The Worker authenticates (Control Plane credential resolution, which needs only
+`project_id` and `tracker_instance_id`) before it decodes the report or
+materializes any evidence.
 
 Frozen wire examples live in `packages/bridge-core/contract/v1/`. The decoder
 test replays every request fixture in every stored version directory.

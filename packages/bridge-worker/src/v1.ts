@@ -1,5 +1,7 @@
 import {
   MAX_ENVELOPE_BYTES,
+  DEPRECATED_PROTOCOL_VERSIONS,
+  ENVELOPE_DECODERS,
   PROTOCOL_VERSION,
   decodeEnvelope,
   mapReportToIssue,
@@ -182,10 +184,45 @@ function connectorFor(
   return factory(context);
 }
 
+function record(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+/** Routing fields only; the full envelope (report included) is decoded after authentication. */
+function commandRouting(
+  payload: unknown,
+): { version: number; projectId: string; trackerInstanceId: string } | Response {
+  if (!record(payload) || typeof payload.protocolVersion !== 'number')
+    return error('invalid_envelope', 'envelope protocolVersion is required', 400);
+  if (!ENVELOPE_DECODERS.has(payload.protocolVersion))
+    return error(
+      'unsupported_protocol_version',
+      `envelope protocolVersion ${payload.protocolVersion} is not supported`,
+      400,
+    );
+  if (
+    typeof payload.project_id !== 'string' ||
+    !payload.project_id ||
+    typeof payload.tracker_instance_id !== 'string' ||
+    !payload.tracker_instance_id
+  )
+    return error('invalid_envelope', 'project_id and tracker_instance_id are required', 400);
+  return {
+    version: payload.protocolVersion,
+    projectId: payload.project_id,
+    trackerInstanceId: payload.tracker_instance_id,
+  };
+}
+
 /** Version-routed envelope API. Report bodies are never logged or persisted. */
 export function createEnvelopeBridgeWorker(
   dependencies: BridgeWorkerDependencies,
 ): ExportedHandler<BridgeWorkerEnv> {
+  const deprecations = dependencies.deprecations ?? DEPRECATED_PROTOCOL_VERSIONS;
+  /** Attaches the end-of-support notice, if any, to a command or read result. */
+  const notify = <T extends object>(version: number, result: T): T => {
+    const deprecation = deprecations.get(version);
+    return deprecation ? { ...result, metadata: { deprecation } } : result;
+  };
   return {
     async fetch(request, env): Promise<Response> {
       const path = new URL(request.url).pathname;
@@ -196,6 +233,16 @@ export function createEnvelopeBridgeWorker(
       const payload = await body(request);
       if (isResponse(payload)) return payload;
       if (path === '/v1/commands') {
+        const routing = commandRouting(payload);
+        if (isResponse(routing)) return routing;
+        // Authenticate before the report is decoded, validated or materialized.
+        const credential = await resolve(
+          env.CONTROL_PLANE,
+          bearer,
+          routing.projectId,
+          routing.trackerInstanceId,
+        );
+        if (isResponse(credential)) return credential;
         const decoded = decodeEnvelope(payload);
         if (!decoded.ok)
           return error(
@@ -204,13 +251,6 @@ export function createEnvelopeBridgeWorker(
             decoded.error.code === 'envelope_too_large' ? 413 : 400,
           );
         const command = decoded.value;
-        const credential = await resolve(
-          env.CONTROL_PLANE,
-          bearer,
-          command.projectId,
-          command.trackerInstanceId,
-        );
-        if (isResponse(credential)) return credential;
         try {
           const result = await executeWithinTimeout(
             requestTimeoutSeconds(credential),
@@ -225,11 +265,11 @@ export function createEnvelopeBridgeWorker(
             },
           );
           if (isResponse(result)) return result;
-          return response(result, result.ok ? 200 : 422);
+          return response(notify(routing.version, result), result.ok ? 200 : 422);
         } catch (cause) {
           const timeout = timedOut(cause);
           return response(
-            {
+            notify(routing.version, {
               idempotencyKey: command.idempotencyKey,
               ok: false,
               error: timeout
@@ -239,7 +279,7 @@ export function createEnvelopeBridgeWorker(
                       'connector outcome is unknown; retrying this command can create a duplicate',
                   }
                 : { code: 'connector_failure', message: 'connector execution did not complete' },
-            },
+            }),
             timeout ? 504 : 502,
           );
         }
@@ -279,7 +319,10 @@ export function createEnvelopeBridgeWorker(
                     connectorId: connector.capabilities.connectorId,
                     id: read.operation.id,
                   };
-            return response(await connector.read(operation, { signal }), 200);
+            return response(
+              notify(read.protocolVersion, await connector.read(operation, { signal })),
+              200,
+            );
           },
         );
       } catch (cause) {

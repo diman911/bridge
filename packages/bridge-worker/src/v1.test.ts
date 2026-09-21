@@ -160,4 +160,55 @@ describe('v1 frozen contract fixtures', () => {
     expect(signals?.attachmentSignal).toBeDefined();
     expect(signals?.attachmentSignal).not.toBe(signals?.signal);
   });
+
+  it('authenticates before decoding the report', async () => {
+    let resolved = 0;
+    const rejecting = {
+      CONTROL_PLANE: {
+        resolveBridgeCredential: async () => {
+          resolved++;
+          return { error: 'invalid_token' };
+        },
+      },
+    };
+    const body = JSON.parse(
+      await readFile(join(contract, 'request-create-issue.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    body.report = { schema_version: 99 }; // would be a 422 if decoded first
+    const response = await worker.fetch(
+      new Request('https://bridge.example.test/v1/commands', {
+        method: 'POST',
+        headers: { authorization: 'Bearer bad' },
+        body: JSON.stringify(body),
+      }),
+      rejecting,
+      {} as ExecutionContext,
+    );
+    expect(resolved).toBe(1);
+    expect(response.status).toBe(401);
+  });
+
+  it('returns the deprecation notice for a version inside its support window', async () => {
+    const notice = { protocolVersion: 1, endOfSupport: '2027-03-21', message: 'v2 is available' };
+    const deprecated = createEnvelopeBridgeWorker({
+      connectors: new Map([['fixture', () => connector]]),
+      deprecations: new Map([[1, notice]]),
+    });
+    const body = await readFile(join(contract, 'request-create-issue.json'), 'utf8');
+    const send = (target: typeof worker) =>
+      target.fetch(
+        new Request('https://bridge.example.test/v1/commands', {
+          method: 'POST',
+          headers: { authorization: 'Bearer fairlead-token' },
+          body,
+        }),
+        env,
+        {} as ExecutionContext,
+      );
+    expect(await (await send(deprecated)).json()).toMatchObject({
+      ok: true,
+      metadata: { deprecation: notice },
+    });
+    expect(await (await send(worker)).json()).not.toHaveProperty('metadata');
+  });
 });
