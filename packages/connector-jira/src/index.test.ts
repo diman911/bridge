@@ -117,4 +117,42 @@ describe('JiraConnector', () => {
     });
     expect(writes).toBe(0);
   });
+
+  it('replaces a previous attachment stored under the sanitized filename', async () => {
+    const calls: string[] = [];
+    const connector = new JiraConnector({
+      baseUrl: 'https://example.atlassian.net',
+      projectKey: 'APP',
+      token: 'token',
+      fetch: (async (url: string, init?: RequestInit) => {
+        const method = init?.method ?? 'GET';
+        calls.push(`${method} ${url}`);
+        if (method === 'GET')
+          return Response.json({
+            fields: {
+              project: { key: 'APP' },
+              attachment: [{ id: 'old-1', filename: 'a_b.png' }],
+            },
+          });
+        if (method === 'POST') return Response.json([{ id: 'new-1' }]);
+        return new Response(null, { status: 204 });
+      }) as typeof fetch,
+    });
+    const result = await connector.attach(
+      {
+        protocolVersion: 1,
+        issueId: 'APP-1',
+        filename: 'a"b.png',
+        contentType: 'image/png',
+        data: new Blob(['bytes']).stream(),
+        idempotencyKey: 'k',
+        limitState: { exceeded: false, actualBytes: 5 },
+      },
+      { signal: new AbortController().signal },
+    );
+    expect(result).toEqual({ filename: 'a"b.png', ok: true });
+    expect(
+      calls.some((call) => call.startsWith('DELETE') && call.endsWith('/attachment/old-1')),
+    ).toBe(true);
+  });
 });

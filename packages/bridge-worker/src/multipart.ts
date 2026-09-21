@@ -165,22 +165,24 @@ export class AttachmentMultipartReader {
     const finalDelimiter = bytes(`\r\n--${this.boundary}--`);
     const data = new ReadableStream<Uint8Array>({
       pull: async (controller) => {
+        const exceedsLimit = async (chunk: Uint8Array): Promise<boolean> => {
+          state.actualBytes += chunk.byteLength;
+          if (state.actualBytes <= MAX_ATTACHMENT_BYTES) return false;
+          state.exceeded = true;
+          controller.error(
+            new MultipartError('attachment_too_large', 'attachment exceeds limit', 413, {
+              limitBytes: MAX_ATTACHMENT_BYTES,
+              actualBytes: state.actualBytes,
+            }),
+          );
+          await this.reader.cancel('attachment exceeds limit');
+          return true;
+        };
         while (true) {
           const index = find(this.buffered, finalDelimiter);
           if (index >= 0) {
             const chunk = this.buffered.slice(0, index);
-            state.actualBytes += chunk.byteLength;
-            if (state.actualBytes > MAX_ATTACHMENT_BYTES) {
-              state.exceeded = true;
-              controller.error(
-                new MultipartError('attachment_too_large', 'attachment exceeds limit', 413, {
-                  limitBytes: MAX_ATTACHMENT_BYTES,
-                  actualBytes: state.actualBytes,
-                }),
-              );
-              await this.reader.cancel('attachment exceeds limit');
-              return;
-            }
+            if (await exceedsLimit(chunk)) return;
             if (chunk.byteLength) controller.enqueue(chunk);
             this.buffered = this.buffered.slice(index + finalDelimiter.byteLength);
             controller.close();
@@ -191,18 +193,7 @@ export class AttachmentMultipartReader {
           if (safe > 0) {
             const chunk = this.buffered.slice(0, safe);
             this.buffered = this.buffered.slice(safe);
-            state.actualBytes += chunk.byteLength;
-            if (state.actualBytes > MAX_ATTACHMENT_BYTES) {
-              state.exceeded = true;
-              controller.error(
-                new MultipartError('attachment_too_large', 'attachment exceeds limit', 413, {
-                  limitBytes: MAX_ATTACHMENT_BYTES,
-                  actualBytes: state.actualBytes,
-                }),
-              );
-              await this.reader.cancel('attachment exceeds limit');
-              return;
-            }
+            if (await exceedsLimit(chunk)) return;
             controller.enqueue(chunk);
             return;
           }

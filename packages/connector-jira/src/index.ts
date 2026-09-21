@@ -142,12 +142,13 @@ export class JiraConnector implements Connector {
           'issue_outside_project',
           'issue is outside configured Jira project',
         );
+      const storedName = attachment.filename.replace(/["\r\n]/g, '_');
       const previous = (existing.fields?.attachment ?? []).filter(
-        (item) => item.filename === attachment.filename,
+        (item) => item.filename === attachment.filename || item.filename === storedName,
       );
       const boundary = `fairlead-${crypto.randomUUID()}`;
       const prefix = new TextEncoder().encode(
-        `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${attachment.filename.replace(/["\r\n]/g, '_')}"\r\nContent-Type: ${attachment.contentType}\r\n\r\n`,
+        `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${storedName}"\r\nContent-Type: ${attachment.contentType}\r\n\r\n`,
       );
       const suffix = new TextEncoder().encode(`\r\n--${boundary}--\r\n`);
       const fileReader = attachment.data.getReader();

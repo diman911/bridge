@@ -1,4 +1,3 @@
-import type { AttachmentMetaV1 } from './attachment-v1.js';
 import type { IntegrationError } from './types.js';
 
 export const MAX_ATTACHMENT_META_BYTES = 16 * 1024;
@@ -82,5 +81,3 @@ export interface ConnectorAttachment {
   /** Shared state set by the bounded multipart stream before it errors. */
   limitState: { exceeded: boolean; actualBytes: number };
 }
-
-export type AttachmentMetaV1Shape = AttachmentMetaV1;

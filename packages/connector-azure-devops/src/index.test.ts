@@ -111,4 +111,40 @@ describe('AzureDevOpsConnector', () => {
     });
     expect(writes).toBe(0);
   });
+
+  it('guards relation removal with a revision test', async () => {
+    const bodies: string[] = [];
+    const connector = new AzureDevOpsConnector({
+      organization: 'acme',
+      project: 'app',
+      token: 't',
+      fetch: (async (url: string, init?: RequestInit) => {
+        const method = init?.method ?? 'GET';
+        if (method === 'GET')
+          return Response.json({
+            rev: 7,
+            relations: [
+              { rel: 'AttachedFile', url: 'https://ado/old', attributes: { name: 'a.har' } },
+            ],
+          });
+        if (method === 'POST' && url.includes('/attachments'))
+          return Response.json({ url: 'https://ado/new' });
+        if (method === 'PATCH') bodies.push(String(init?.body));
+        return Response.json({});
+      }) as typeof fetch,
+    });
+    await connector.attach(
+      {
+        protocolVersion: 1,
+        issueId: '12',
+        filename: 'a.har',
+        contentType: 'application/octet-stream',
+        data: new Blob(['bytes']).stream(),
+        idempotencyKey: 'k',
+        limitState: { exceeded: false, actualBytes: 5 },
+      },
+      { signal: new AbortController().signal },
+    );
+    expect(JSON.parse(bodies[0]!)[0]).toEqual({ op: 'test', path: '/rev', value: 7 });
+  });
 });

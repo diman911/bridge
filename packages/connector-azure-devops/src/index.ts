@@ -117,16 +117,15 @@ export class AzureDevOpsConnector implements Connector {
         signal: options.signal,
       });
       if (!current.ok) return fail('attachment_lookup_failed', String(current.status));
-      const relations =
-        (
-          (await current.json()) as {
-            relations?: {
-              rel: string;
-              url: string;
-              attributes?: { name?: string; comment?: string };
-            }[];
-          }
-        ).relations ?? [];
+      const body = (await current.json()) as {
+        rev?: number;
+        relations?: {
+          rel: string;
+          url: string;
+          attributes?: { name?: string; comment?: string };
+        }[];
+      };
+      const relations = body.relations ?? [];
       const previous = relations
         .map((relation, index) => ({ relation, index }))
         .filter(
@@ -147,6 +146,9 @@ export class AzureDevOpsConnector implements Connector {
       if (!upload.ok) return fail('attachment_upload_failed', String(upload.status));
       const uploadedUrl = ((await upload.json()) as { url: string }).url;
       const patch = [
+        ...(previous.length && body.rev !== undefined
+          ? [{ op: 'test', path: '/rev', value: body.rev }]
+          : []),
         ...previous
           .sort((a, b) => b.index - a.index)
           .map(({ index }) => ({ op: 'remove', path: `/relations/${index}` })),
