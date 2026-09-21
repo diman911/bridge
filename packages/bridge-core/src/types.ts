@@ -62,6 +62,8 @@ export interface IntegrationResult {
   idempotencyKey: string;
   /** Reflects the issue mutation only; attachments are uploaded separately. */
   ok: boolean;
+  /** Provider issue identifier, required by the subsequent attachment route. */
+  issueId?: string;
   issueUrl?: string;
   error?: IntegrationError;
   /** Additive response metadata for protocol lifecycle notices. */

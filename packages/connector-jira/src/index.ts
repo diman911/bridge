@@ -114,6 +114,7 @@ export class JiraConnector implements Connector {
     return {
       idempotencyKey: command.idempotencyKey,
       ok: true,
+      issueId: key,
       issueUrl: `${this.base}/browse/${key}`,
     };
   }

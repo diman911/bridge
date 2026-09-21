@@ -94,6 +94,7 @@ export class GithubConnector implements Connector {
     return {
       idempotencyKey: c.idempotencyKey,
       ok: true,
+      issueId: String(d.number),
       issueUrl: d.html_url,
     };
   }

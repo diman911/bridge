@@ -111,7 +111,9 @@ to `connector.settings.attachments_branch`.
 ### Results
 
 `IntegrationResult.ok` reflects the issue mutation only; it carries no
-attachment outcomes. `IntegrationError.httpStatus` is limited to retry-safe
+attachment outcomes. A successful issue mutation carries `issueId` (the
+provider identifier required by the separate attachment route) and may carry
+`issueUrl` for presentation. `IntegrationError.httpStatus` is limited to retry-safe
 upstream statuses (`429`, `502`, `503`, `504`); `retryable: true` maps to `503`
 when no status is supplied.
 

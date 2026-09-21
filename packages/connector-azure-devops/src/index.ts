@@ -98,6 +98,7 @@ export class AzureDevOpsConnector implements Connector {
     return {
       idempotencyKey: c.idempotencyKey,
       ok: true,
+      issueId: String(d.id),
       issueUrl: this.webUrl(d.id),
     };
   }
