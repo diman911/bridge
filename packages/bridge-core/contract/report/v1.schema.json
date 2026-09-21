@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Fairlead Bridge report subset v1",
+  "type": "object",
+  "required": ["schema_version", "meta", "summary", "http_requests", "attachments"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "meta": {
+      "type": "object",
+      "required": ["url", "started_at", "stopped_at", "title"],
+      "properties": {
+        "url": { "type": "string" },
+        "started_at": { "type": "string" },
+        "stopped_at": { "type": "string" },
+        "title": { "type": ["string", "null"] }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["errors", "network_requests", "user_actions"],
+      "properties": {
+        "errors": { "type": "number" },
+        "network_requests": { "type": "number" },
+        "user_actions": { "type": "number" }
+      }
+    },
+    "http_requests": { "type": "array", "items": { "type": "object" } },
+    "attachments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "dataUrl"],
+        "properties": { "id": { "type": "string" }, "dataUrl": { "type": "string" } }
+      }
+    }
+  }
+}

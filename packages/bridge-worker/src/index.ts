@@ -1,6 +1,7 @@
 import { JiraConnector } from '@fairlead/connector-jira';
 import { GithubConnector } from '@fairlead/connector-github';
 import { AzureDevOpsConnector } from '@fairlead/connector-azure-devops';
+import { createEnvelopeBridgeWorker } from './v1.js';
 import {
   PROTOCOL_VERSION,
   validateIntegrationCommand,
@@ -13,6 +14,8 @@ const RETRYABLE_HTTP_STATUSES = new Set([429, 502, 503, 504]);
 
 export const DEFAULT_REQUEST_TIMEOUT_SECONDS = 15;
 export interface ResolvedBridgeCredential {
+  /** Verified identity supplied by control-plane C3; never caller input. */
+  caller_id: string;
   credential: {
     token: string;
     metadata: Record<string, unknown> | null;
@@ -342,4 +345,4 @@ const productionConnectors = new Map<string, ConnectorFactory>([
   ],
 ]);
 
-export default createBridgeWorker({ connectors: productionConnectors });
+export default createEnvelopeBridgeWorker({ connectors: productionConnectors });

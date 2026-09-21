@@ -1,0 +1,22 @@
+{
+  "protocolVersion": 1,
+  "project_id": "project-123",
+  "tracker_instance_id": "tracker-456",
+  "intent": { "action": "create_issue" },
+  "title": "Checkout fails after applying a discount",
+  "description": "The user-visible summary supplied by the reporter.",
+  "report": {
+    "schema_version": 1,
+    "meta": {
+      "url": "https://app.example.test",
+      "started_at": "2026-09-21T12:00:00Z",
+      "stopped_at": "2026-09-21T12:01:00Z",
+      "title": null
+    },
+    "summary": { "errors": 1, "network_requests": 2, "user_actions": 3 },
+    "http_requests": [],
+    "attachments": []
+  },
+  "options": { "includeHar": true, "includeScreenshots": true },
+  "idempotencyKey": "report-789-create"
+}

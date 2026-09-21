@@ -92,14 +92,11 @@ export class GithubConnector implements Connector {
     return { idempotencyKey: c.idempotencyKey, ok: true, issueUrl: d.html_url, attachments };
   }
   async attach(id: string, e: EvidenceReference, signal: AbortSignal): Promise<AttachmentResult> {
-    if (e.mode !== 'data_plane_reference')
-      return {
-        reference: e,
-        ok: false,
-        error: { code: 'unsupported_evidence', message: 'Data Plane reference required' },
-      };
     try {
-      const source = await this.f(e.sessionUrl, { signal });
+      const source =
+        e.mode === 'data_plane_reference'
+          ? await this.f(e.sessionUrl, { signal })
+          : await fetch(e.dataUrl, { signal });
       if (!source.ok)
         return {
           reference: e,
@@ -150,7 +147,10 @@ export class GithubConnector implements Connector {
             error: { code: 'attachment_branch_failed', message: String(made.status) },
           };
       }
-      const lastSegment = new URL(e.sessionUrl).pathname.split('/').pop() || 'evidence';
+      const lastSegment =
+        e.mode === 'data_plane_reference'
+          ? new URL(e.sessionUrl).pathname.split('/').pop() || 'evidence'
+          : e.filename;
       // pathname is already percent-encoded; decode so the path is encoded exactly once.
       let name = lastSegment;
       try {

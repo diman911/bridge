@@ -8,12 +8,23 @@ describes the current shape, not why it looks this way.
 
 ## Protocol version
 
-`PROTOCOL_VERSION` (`src/types.ts`) — currently `1`. Every
-`IntegrationCommand` and `ConnectorCapabilities` carries a `protocolVersion`
-field; `isCompatibleProtocolVersion()` is the single place that decides
-whether a caller's version is executable. A command failing this check is
-rejected by `validateIntegrationCommand()` with `error.code:
-'unsupported_protocol_version'`, not thrown.
+The public write wire format is `EnvelopeV1` in `src/envelope-v1.ts`. It
+contains `protocolVersion`, `project_id`, `tracker_instance_id`, `intent`,
+`title`, `description`, `report`, `options`, and `idempotencyKey`; it never
+contains a caller identity, connector identity, or connector configuration.
+`decodeEnvelope()` selects a registered version decoder and maps the wire
+envelope to `InternalIntegrationCommand` (camel-cased trusted routing fields).
+`SUPPORTED_PROTOCOL_VERSIONS` is the single compatible-version set used by
+`isCompatibleProtocolVersion()`. A version not in that set returns
+`error.code: 'unsupported_protocol_version'`, not an exception.
+
+`MAX_ENVELOPE_BYTES`, `MAX_TITLE_LENGTH`, and `MAX_DESCRIPTION_LENGTH` are
+enforced while decoding. `DeprecationNotice` may be included in
+`IntegrationResult.metadata` when a supported version is approaching its
+published end of support.
+
+Frozen wire examples live in `packages/bridge-core/contract/v1/`. The decoder
+test replays every request fixture in every stored version directory.
 
 ## Write path: `IntegrationCommand` → `IntegrationResult`
 

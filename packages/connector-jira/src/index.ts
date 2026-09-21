@@ -104,9 +104,7 @@ export class JiraConnector implements Connector {
         error: { code: 'jira_request_failed', message: `${r.status} ${r.statusText}` },
       };
     const resolved = a.type === 'create_issue' ? ((await r.json()) as { key: string }).key : key!;
-    const attachments = command.evidence
-      ? [await this.attach(resolved, command.evidence, o.signal)]
-      : undefined;
+    const attachments = command.evidence ? [await this.attach(resolved, command.evidence, o.signal)] : undefined;
     return {
       idempotencyKey: command.idempotencyKey,
       ok: true,
@@ -115,26 +113,11 @@ export class JiraConnector implements Connector {
     };
   }
   async attach(key: string, e: EvidenceReference, signal: AbortSignal): Promise<AttachmentResult> {
-    if (e.mode !== 'data_plane_reference')
-      return {
-        reference: e,
-        ok: false,
-        error: { code: 'unsupported_evidence', message: 'Data Plane reference required' },
-      };
     try {
-      const source = await this.f(e.sessionUrl, { signal });
-      if (!source.ok)
-        return {
-          reference: e,
-          ok: false,
-          error: { code: 'attachment_fetch_failed', message: String(source.status) },
-        };
       const form = new FormData();
-      form.append(
-        'file',
-        await source.blob(),
-        new URL(e.sessionUrl).pathname.split('/').pop() || 'evidence',
-      );
+      const source = e.mode === 'data_plane_reference' ? await this.f(e.sessionUrl, { signal }) : await fetch(e.dataUrl, { signal });
+      if (!source.ok) return { reference: e, ok: false, error: { code: 'attachment_fetch_failed', message: String(source.status) } };
+      form.append('file', await source.blob(), e.mode === 'data_plane_reference' ? new URL(e.sessionUrl).pathname.split('/').pop() || 'evidence' : e.filename);
       const r = await this.f(
         `${this.base}/rest/api/3/issue/${encodeURIComponent(key)}/attachments`,
         {

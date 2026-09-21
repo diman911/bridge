@@ -1,8 +1,10 @@
 import type { EnvelopeIntent, EvidenceOptions, ReportEnvelopePayload } from './envelope-v1.js';
 import type { IntegrationError } from './types.js';
+import { decodeReport } from './report.js';
 
 /** Conservative temporary ceiling; B7 replaces this with the measured Worker limit. */
-export const MAX_ENVELOPE_BYTES = 1_000_000;
+/** Product ceiling. Cloudflare accepts at least 100 MB, but JSON buffering must stay well below the 128 MB Worker memory limit. */
+export const MAX_ENVELOPE_BYTES = 10 * 1024 * 1024;
 export const MAX_TITLE_LENGTH = 32_768;
 export const MAX_DESCRIPTION_LENGTH = 32_768;
 
@@ -33,8 +35,7 @@ export interface InternalIntegrationCommand {
 }
 
 export type DecodeResult =
-  | { ok: true; value: InternalIntegrationCommand }
-  | { ok: false; error: IntegrationError };
+  { ok: true; value: InternalIntegrationCommand } | { ok: false; error: IntegrationError };
 export type EnvelopeDecoder = (value: unknown) => DecodeResult;
 
 function fail(code: string, message: string): DecodeResult {
@@ -51,7 +52,11 @@ function decodeIntent(value: unknown): EnvelopeIntent | null {
   if (!isRecord(value) || typeof value.action !== 'string') return null;
   if (value.action === 'create_issue') return { action: 'create_issue' };
   if (value.action !== 'update_issue' && value.action !== 'add_comment') return null;
-  if (!isRecord(value.target) || value.target.kind !== 'issue' || typeof value.target.id !== 'string')
+  if (
+    !isRecord(value.target) ||
+    value.target.kind !== 'issue' ||
+    typeof value.target.id !== 'string'
+  )
     return null;
   if (!value.target.id) return null;
   return { action: value.action, target: { kind: 'issue', id: value.target.id } };
@@ -78,14 +83,23 @@ export function decodeEnvelopeV1(value: unknown): DecodeResult {
   if (bytes > MAX_ENVELOPE_BYTES)
     return fail('envelope_too_large', `envelope must not exceed ${MAX_ENVELOPE_BYTES} bytes`);
   if (value.protocolVersion !== 1)
-    return fail('unsupported_protocol_version', 'envelope protocolVersion 1 is required for this route');
+    return fail(
+      'unsupported_protocol_version',
+      'envelope protocolVersion 1 is required for this route',
+    );
   const projectId = requiredString(value, 'project_id');
   const trackerInstanceId = requiredString(value, 'tracker_instance_id');
   const idempotencyKey = requiredString(value, 'idempotencyKey');
   if (!projectId || !trackerInstanceId || !idempotencyKey)
-    return fail('invalid_envelope', 'project_id, tracker_instance_id, and idempotencyKey are required');
+    return fail(
+      'invalid_envelope',
+      'project_id, tracker_instance_id, and idempotencyKey are required',
+    );
   if (typeof value.title !== 'string' || value.title.length > MAX_TITLE_LENGTH)
-    return fail('invalid_title', `title must be a string of at most ${MAX_TITLE_LENGTH} characters`);
+    return fail(
+      'invalid_title',
+      `title must be a string of at most ${MAX_TITLE_LENGTH} characters`,
+    );
   if (typeof value.description !== 'string' || value.description.length > MAX_DESCRIPTION_LENGTH)
     return fail(
       'invalid_description',
@@ -93,9 +107,11 @@ export function decodeEnvelopeV1(value: unknown): DecodeResult {
     );
   const intent = decodeIntent(value.intent);
   if (!intent) return fail('invalid_intent', 'intent must be a supported action and target');
-  if (!isRecord(value.report)) return fail('invalid_report', 'report must be an object');
+  const report = decodeReport(value.report);
+  if (!report.ok) return { ok: false, error: report.error };
   const options = decodeOptions(value.options);
-  if (!options) return fail('invalid_options', 'options must select HAR and screenshots explicitly');
+  if (!options)
+    return fail('invalid_options', 'options must select HAR and screenshots explicitly');
   return {
     ok: true,
     value: {
@@ -105,7 +121,7 @@ export function decodeEnvelopeV1(value: unknown): DecodeResult {
       intent,
       title: value.title,
       description: value.description,
-      report: value.report,
+      report: value.report as ReportEnvelopePayload,
       options,
       idempotencyKey,
     },
@@ -119,12 +135,14 @@ export const ENVELOPE_DECODERS: ReadonlyMap<number, EnvelopeDecoder> = new Map([
 /** Versions whose frozen wire fixtures the current Bridge must still accept. */
 export const SUPPORTED_PROTOCOL_VERSIONS: ReadonlySet<number> = new Set(ENVELOPE_DECODERS.keys());
 
-
 export function decodeEnvelope(value: unknown): DecodeResult {
   if (!isRecord(value) || typeof value.protocolVersion !== 'number')
     return fail('invalid_envelope', 'envelope protocolVersion is required');
   const decoder = ENVELOPE_DECODERS.get(value.protocolVersion);
   return decoder
     ? decoder(value)
-    : fail('unsupported_protocol_version', `envelope protocolVersion ${value.protocolVersion} is not supported`);
+    : fail(
+        'unsupported_protocol_version',
+        `envelope protocolVersion ${value.protocolVersion} is not supported`,
+      );
 }

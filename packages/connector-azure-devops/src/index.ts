@@ -115,21 +115,21 @@ export class AzureDevOpsConnector implements Connector {
     e: EvidenceReference,
     signal: AbortSignal,
   ): Promise<AttachmentResult> {
-    if (e.mode !== 'data_plane_reference')
-      return {
-        reference: e,
-        ok: false,
-        error: { code: 'unsupported_evidence', message: 'Data Plane reference required' },
-      };
     try {
-      const source = await this.f(e.sessionUrl, { signal });
+      const source =
+        e.mode === 'data_plane_reference'
+          ? await this.f(e.sessionUrl, { signal })
+          : await fetch(e.dataUrl, { signal });
       if (!source.ok)
         return {
           reference: e,
           ok: false,
           error: { code: 'attachment_fetch_failed', message: String(source.status) },
         };
-      const name = new URL(e.sessionUrl).pathname.split('/').pop() || 'evidence';
+      const name =
+        e.mode === 'data_plane_reference'
+          ? new URL(e.sessionUrl).pathname.split('/').pop() || 'evidence'
+          : e.filename;
       const upload = await this.f(
         `${this.base}/_apis/wit/attachments?fileName=${encodeURIComponent(name)}&api-version=7.1`,
         {

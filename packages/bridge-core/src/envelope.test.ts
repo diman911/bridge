@@ -20,7 +20,18 @@ const envelope = {
   intent: { action: 'update_issue', target: { kind: 'issue', id: 'ISSUE-1' } },
   title: 'Broken login',
   description: 'Steps to reproduce',
-  report: { schema_version: 2, title: 'sanitized' },
+  report: {
+    schema_version: 1,
+    meta: {
+      url: 'https://app.example.test',
+      started_at: '2026-09-21T12:00:00Z',
+      stopped_at: '2026-09-21T12:01:00Z',
+      title: null,
+    },
+    summary: { errors: 1, network_requests: 2, user_actions: 3 },
+    http_requests: [],
+    attachments: [],
+  },
   options: { includeHar: true, includeScreenshots: false },
   idempotencyKey: 'command-1',
 };
@@ -70,9 +81,12 @@ describe('report envelope v1', () => {
   });
 });
 
-  it('exposes the decoder from the package entry point and enforces its byte limit', () => {
-    expect(isCompatibleProtocolVersion(PROTOCOL_VERSION)).toBe(true);
-    expect(
-      decodeEnvelopeFromPublicApi({ ...envelope, report: { payload: 'x'.repeat(MAX_ENVELOPE_BYTES) } }),
-    ).toMatchObject({ ok: false, error: { code: 'envelope_too_large' } });
-  });
+it('exposes the decoder from the package entry point and enforces its byte limit', () => {
+  expect(isCompatibleProtocolVersion(PROTOCOL_VERSION)).toBe(true);
+  expect(
+    decodeEnvelopeFromPublicApi({
+      ...envelope,
+      report: { payload: 'x'.repeat(MAX_ENVELOPE_BYTES) },
+    }),
+  ).toMatchObject({ ok: false, error: { code: 'envelope_too_large' } });
+});
