@@ -7,6 +7,7 @@ dist/
 # IDE / tooling
 .claude/*
 !.claude/commands/
+!.claude/skills/
 .codemie/
 .cursor/
 .superpowers/
