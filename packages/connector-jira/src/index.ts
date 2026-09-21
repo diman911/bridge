@@ -5,6 +5,9 @@ import {
   type ConnectorCommand,
   type ConnectorExecutionOptions,
   type IntegrationResult,
+  type ConnectorAttachment,
+  type ConnectorAttachmentOptions,
+  type AttachmentResult,
   type ReadOperation,
   type ReadResult,
 } from '@fairlead/bridge-core';
@@ -113,6 +116,123 @@ export class JiraConnector implements Connector {
       ok: true,
       issueUrl: `${this.base}/browse/${key}`,
     };
+  }
+  async attach(
+    attachment: ConnectorAttachment,
+    options: ConnectorAttachmentOptions,
+  ): Promise<AttachmentResult> {
+    const issue = `${this.base}/rest/api/3/issue/${encodeURIComponent(attachment.issueId)}`;
+    try {
+      const current = await this.f(`${issue}?fields=attachment,project`, {
+        headers: this.h(),
+        signal: options.signal,
+      });
+      if (!current.ok)
+        return this.attachmentFailure(
+          attachment,
+          'attachment_lookup_failed',
+          String(current.status),
+        );
+      const existing = (await current.json()) as {
+        fields?: { project?: { key?: string }; attachment?: { id: string; filename: string }[] };
+      };
+      if (existing.fields?.project?.key !== this.c.projectKey)
+        return this.attachmentFailure(
+          attachment,
+          'issue_outside_project',
+          'issue is outside configured Jira project',
+        );
+      const previous = (existing.fields?.attachment ?? []).filter(
+        (item) => item.filename === attachment.filename,
+      );
+      const boundary = `fairlead-${crypto.randomUUID()}`;
+      const prefix = new TextEncoder().encode(
+        `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${attachment.filename.replace(/["\r\n]/g, '_')}"\r\nContent-Type: ${attachment.contentType}\r\n\r\n`,
+      );
+      const suffix = new TextEncoder().encode(`\r\n--${boundary}--\r\n`);
+      const fileReader = attachment.data.getReader();
+      let sentPrefix = false;
+      let sentSuffix = false;
+      const body = new ReadableStream<Uint8Array>({
+        async pull(controller) {
+          if (!sentPrefix) {
+            sentPrefix = true;
+            controller.enqueue(prefix);
+            return;
+          }
+          const next = await fileReader.read();
+          if (!next.done) {
+            controller.enqueue(next.value);
+            return;
+          }
+          if (!sentSuffix) {
+            sentSuffix = true;
+            controller.enqueue(suffix);
+            return;
+          }
+          controller.close();
+        },
+        async cancel(reason) {
+          await fileReader.cancel(reason);
+        },
+      });
+      const upload = await this.f(`${issue}/attachments`, {
+        method: 'POST',
+        headers: {
+          ...this.h(),
+          'X-Atlassian-Token': 'no-check',
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        },
+        body,
+        signal: options.signal,
+      });
+      if (!upload.ok)
+        return this.attachmentFailure(
+          attachment,
+          'attachment_upload_failed',
+          String(upload.status),
+        );
+      const cleanup = await Promise.allSettled(
+        previous.map((item) =>
+          this.f(`${this.base}/rest/api/3/attachment/${encodeURIComponent(item.id)}`, {
+            method: 'DELETE',
+            headers: this.h(),
+            signal: options.signal,
+          }),
+        ),
+      );
+      const warning = cleanup.some((result) => result.status === 'rejected' || !result.value.ok);
+      return {
+        filename: attachment.filename,
+        ok: true,
+        ...(warning
+          ? {
+              warnings: [
+                {
+                  code: 'previous_version_not_removed' as const,
+                  message:
+                    'the new attachment was uploaded but an older version could not be removed',
+                },
+              ],
+            }
+          : {}),
+      };
+    } catch {
+      return attachment.limitState.exceeded
+        ? this.attachmentFailure(attachment, 'attachment_too_large', 'attachment exceeds limit')
+        : this.attachmentFailure(
+            attachment,
+            'attachment_upload_failed',
+            'attachment request failed',
+          );
+    }
+  }
+  private attachmentFailure(
+    attachment: ConnectorAttachment,
+    code: string,
+    message: string,
+  ): AttachmentResult {
+    return { filename: attachment.filename, ok: false, error: { code, message } };
   }
   async read(op: ReadOperation, options: ConnectorExecutionOptions): Promise<ReadResult> {
     if (op.type === 'search') {

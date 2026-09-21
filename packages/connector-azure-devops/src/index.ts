@@ -7,6 +7,9 @@ import {
   type IntegrationResult,
   type ReadOperation,
   type ReadResult,
+  type ConnectorAttachment,
+  type ConnectorAttachmentOptions,
+  type AttachmentResult,
 } from '@fairlead/bridge-core';
 export interface AzureDevOpsConnectorConfig {
   token: string;
@@ -97,6 +100,103 @@ export class AzureDevOpsConnector implements Connector {
       ok: true,
       issueUrl: this.webUrl(d.id),
     };
+  }
+  async attach(
+    attachment: ConnectorAttachment,
+    options: ConnectorAttachmentOptions,
+  ): Promise<AttachmentResult> {
+    const fail = (code: string, message: string): AttachmentResult => ({
+      filename: attachment.filename,
+      ok: false,
+      error: { code, message },
+    });
+    const item = `${this.base}/_apis/wit/workitems/${encodeURIComponent(attachment.issueId)}?api-version=7.1`;
+    try {
+      const current = await this.f(`${item}&$expand=relations`, {
+        headers: { Authorization: this.auth(), Accept: 'application/json' },
+        signal: options.signal,
+      });
+      if (!current.ok) return fail('attachment_lookup_failed', String(current.status));
+      const relations =
+        (
+          (await current.json()) as {
+            relations?: {
+              rel: string;
+              url: string;
+              attributes?: { name?: string; comment?: string };
+            }[];
+          }
+        ).relations ?? [];
+      const previous = relations
+        .map((relation, index) => ({ relation, index }))
+        .filter(
+          ({ relation }) =>
+            relation.rel === 'AttachedFile' &&
+            (relation.attributes?.name === attachment.filename ||
+              relation.attributes?.comment === attachment.filename),
+        );
+      const upload = await this.f(
+        `${this.base}/_apis/wit/attachments?fileName=${encodeURIComponent(attachment.filename)}&api-version=7.1`,
+        {
+          method: 'POST',
+          headers: { Authorization: this.auth(), 'Content-Type': 'application/octet-stream' },
+          body: attachment.data,
+          signal: options.signal,
+        },
+      );
+      if (!upload.ok) return fail('attachment_upload_failed', String(upload.status));
+      const uploadedUrl = ((await upload.json()) as { url: string }).url;
+      const patch = [
+        ...previous
+          .sort((a, b) => b.index - a.index)
+          .map(({ index }) => ({ op: 'remove', path: `/relations/${index}` })),
+        {
+          op: 'add',
+          path: '/relations/-',
+          value: {
+            rel: 'AttachedFile',
+            url: uploadedUrl,
+            attributes: { comment: attachment.filename },
+          },
+        },
+      ];
+      const linked = await this.f(item, {
+        method: 'PATCH',
+        headers: this.headers(),
+        body: JSON.stringify(patch),
+        signal: options.signal,
+      });
+      if (!linked.ok) return fail('attachment_link_failed', String(linked.status));
+      const cleanup = await Promise.allSettled(
+        previous.map(({ relation }) =>
+          this.f(`${relation.url}?api-version=7.1`, {
+            method: 'DELETE',
+            headers: { Authorization: this.auth() },
+            signal: options.signal,
+          }),
+        ),
+      );
+      const warning = cleanup.some((result) => result.status === 'rejected' || !result.value.ok);
+      return {
+        filename: attachment.filename,
+        ok: true,
+        ...(warning
+          ? {
+              warnings: [
+                {
+                  code: 'previous_version_not_removed' as const,
+                  message:
+                    'the new attachment was linked but an older version could not be deleted',
+                },
+              ],
+            }
+          : {}),
+      };
+    } catch {
+      return attachment.limitState.exceeded
+        ? fail('attachment_too_large', 'attachment exceeds limit')
+        : fail('attachment_upload_failed', 'attachment request failed');
+    }
   }
   async read(op: ReadOperation, options: ConnectorExecutionOptions): Promise<ReadResult> {
     if (op.type === 'fetch') {

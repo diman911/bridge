@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ConnectorCommand } from '@fairlead/bridge-core';
+import type { ConnectorAttachment, ConnectorCommand } from '@fairlead/bridge-core';
 import { runConnectorConformanceTests } from '@fairlead/bridge-core/conformance';
 import { JiraConnector } from './index.js';
 
@@ -42,6 +42,43 @@ describe('JiraConnector', () => {
       issueUrl: 'https://example.atlassian.net/browse/APP-1',
     });
     expect(bodies[0]).toMatchObject({ fields: { summary: 'New title' } });
+  });
+
+  it('uploads a replacement before deleting the previous attachment and warns on cleanup failure', async () => {
+    const calls: string[] = [];
+    const connector = new JiraConnector({
+      baseUrl: 'https://example.atlassian.net',
+      projectKey: 'APP',
+      token: 'token',
+      fetch: (async (url: string, init?: RequestInit) => {
+        const method = init?.method ?? 'GET';
+        calls.push(`${method} ${url}`);
+        if (method === 'GET')
+          return Response.json({
+            fields: {
+              project: { key: 'APP' },
+              attachment: [{ id: 'old-1', filename: 'capture.har' }],
+            },
+          });
+        if (method === 'POST') return Response.json([{ id: 'new-1' }]);
+        return new Response('', { status: 500 });
+      }) as typeof fetch,
+    });
+    const attachment: ConnectorAttachment = {
+      protocolVersion: 1,
+      issueId: 'APP-1',
+      filename: 'capture.har',
+      contentType: 'application/x-http-archive',
+      data: new Blob(['bytes']).stream(),
+      idempotencyKey: 'k',
+      limitState: { exceeded: false, actualBytes: 5 },
+    };
+    const result = await connector.attach(attachment, { signal: new AbortController().signal });
+    expect(result).toMatchObject({
+      ok: true,
+      warnings: [{ code: 'previous_version_not_removed' }],
+    });
+    expect(calls.map((call) => call.split(' ')[0])).toEqual(['GET', 'POST', 'DELETE']);
   });
 
   it('rejects multiple Fairlead ADF blocks without mutating the issue', async () => {

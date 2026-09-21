@@ -3,13 +3,30 @@ export type {
   Outcome,
   IntegrationError,
   AttachmentResult,
+  AttachmentWarning,
   IntegrationResult,
   ReadOperation,
   IssueSummary,
   ReadResult,
 } from './types.js';
 export { PROTOCOL_VERSION, isCompatibleProtocolVersion } from './types.js';
-export type { ConnectorCapabilities, Connector, ConnectorExecutionOptions } from './connector.js';
+export type {
+  ConnectorCapabilities,
+  Connector,
+  ConnectorExecutionOptions,
+  ConnectorAttachmentOptions,
+} from './connector.js';
+export type { AttachmentMetaV1 } from './attachment-v1.js';
+export type {
+  AttachmentMeta,
+  AttachmentMetaDecodeResult,
+  ConnectorAttachment,
+} from './attachment.js';
+export {
+  MAX_ATTACHMENT_META_BYTES,
+  MAX_ATTACHMENT_BYTES,
+  decodeAttachmentMetaV1,
+} from './attachment.js';
 export type {
   EnvelopeV1,
   CreateIssueCommandV1,

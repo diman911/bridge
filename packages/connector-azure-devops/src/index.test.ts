@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ConnectorCommand } from '@fairlead/bridge-core';
+import type { ConnectorAttachment, ConnectorCommand } from '@fairlead/bridge-core';
 import { runConnectorConformanceTests } from '@fairlead/bridge-core/conformance';
 import { AzureDevOpsConnector } from './index.js';
 
@@ -40,6 +40,47 @@ describe('AzureDevOpsConnector', () => {
         expect.objectContaining({ path: '/fields/System.Title', value: 'Title' }),
       ]),
     );
+  });
+
+  it('uploads and links a replacement before deleting the previous blob', async () => {
+    const methods: string[] = [];
+    const connector = new AzureDevOpsConnector({
+      organization: 'acme',
+      project: 'app',
+      token: 't',
+      fetch: (async (url: string, init?: RequestInit) => {
+        const method = init?.method ?? 'GET';
+        methods.push(method);
+        if (method === 'GET')
+          return Response.json({
+            relations: [
+              {
+                rel: 'AttachedFile',
+                url: 'https://ado/old',
+                attributes: { name: 'capture.har' },
+              },
+            ],
+          });
+        if (method === 'POST' && url.includes('/attachments'))
+          return Response.json({ url: 'https://ado/new' });
+        return Response.json({});
+      }) as typeof fetch,
+    });
+    const attachment: ConnectorAttachment = {
+      protocolVersion: 1,
+      issueId: '12',
+      filename: 'capture.har',
+      contentType: 'application/x-http-archive',
+      data: new Blob(['bytes']).stream(),
+      idempotencyKey: 'k',
+      limitState: { exceeded: false, actualBytes: 5 },
+    };
+    expect(
+      await connector.attach(attachment, { signal: new AbortController().signal }),
+    ).toMatchObject({
+      ok: true,
+    });
+    expect(methods).toEqual(['GET', 'POST', 'PATCH', 'DELETE']);
   });
 
   it('returns description_conflict for malformed managed HTML', async () => {

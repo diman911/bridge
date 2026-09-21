@@ -55,6 +55,12 @@ export interface AttachmentResult {
   filename: string;
   ok: boolean;
   error?: IntegrationError;
+  warnings?: AttachmentWarning[];
+}
+
+export interface AttachmentWarning {
+  code: 'previous_version_not_removed';
+  message: string;
 }
 
 export interface IntegrationResult {

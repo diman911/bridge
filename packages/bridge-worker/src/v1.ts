@@ -2,6 +2,7 @@ import {
   DEPRECATED_PROTOCOL_VERSIONS,
   ENVELOPE_DECODERS,
   MAX_JSON_REQUEST_BYTES,
+  MAX_ATTACHMENT_BYTES,
   PROTOCOL_VERSION,
   decodeEnvelope,
   toConnectorCommand,
@@ -18,6 +19,7 @@ import type {
   ControlPlaneRpc,
   ResolvedBridgeCredential,
 } from './index.js';
+import { AttachmentMultipartReader, MultipartError } from './multipart.js';
 
 export const DEFAULT_REQUEST_TIMEOUT_SECONDS = 15;
 const BACKSTOP_GRACE_MS = 2000;
@@ -48,6 +50,19 @@ function resolved(value: unknown): value is ResolvedBridgeCredential {
     !!candidate.connector &&
     typeof candidate.connector.catalog_type === 'string'
   );
+}
+async function authenticateIdentity(
+  cp: ControlPlaneRpc,
+  bearer: string,
+): Promise<{ callerId: string } | Response> {
+  try {
+    const value = await cp.authenticateBridgeIdentity(bearer);
+    return 'caller_id' in value && typeof value.caller_id === 'string'
+      ? { callerId: value.caller_id }
+      : error('invalid_token', 'identity token is invalid or expired', 401);
+  } catch {
+    return error('control_plane_unavailable', 'identity authentication failed', 503);
+  }
 }
 function readEnvelope(value: unknown): value is ReadEnvelope {
   if (typeof value !== 'object' || value === null) return false;
@@ -256,10 +271,76 @@ export function createEnvelopeBridgeWorker(
   return {
     async fetch(request: Request, env: BridgeWorkerEnv): Promise<Response> {
       const path = new URL(request.url).pathname;
-      if (request.method !== 'POST' || (path !== '/v1/commands' && path !== '/v1/reads'))
+      if (
+        request.method !== 'POST' ||
+        (path !== '/v1/commands' && path !== '/v1/reads' && path !== '/v1/attachments')
+      )
         return response({ error: 'not_found' }, 404);
       const bearer = token(request);
       if (!bearer) return error('missing_token', 'Bearer token is required', 401);
+      if (path === '/v1/attachments') {
+        const identity = await authenticateIdentity(env.CONTROL_PLANE, bearer);
+        if (isResponse(identity)) return identity;
+        try {
+          const multipart = new AttachmentMultipartReader(request);
+          const meta = await multipart.readMeta();
+          const credential = await resolve(
+            env.CONTROL_PLANE,
+            bearer,
+            meta.projectId,
+            meta.trackerInstanceId,
+          );
+          if (isResponse(credential)) return credential;
+          if (credential.caller_id !== identity.callerId)
+            return error(
+              'invalid_token',
+              'resolved caller does not match authenticated caller',
+              401,
+            );
+          return await executeWithinTimeout(
+            requestTimeoutSeconds(credential),
+            0,
+            async (signal): Promise<Response> => {
+              const connector = connectorFor(dependencies, credential, signal);
+              if (isResponse(connector)) return connector;
+              if (!connector.attach)
+                return error(
+                  'unsupported_attachment',
+                  'connector does not support attachments',
+                  422,
+                );
+              const attachment = await multipart.file(meta);
+              const result = await connector.attach(attachment, { signal });
+              if (!result.ok && result.error?.code === 'attachment_too_large')
+                return response(
+                  {
+                    idempotencyKey: meta.idempotencyKey,
+                    error: {
+                      code: 'attachment_too_large',
+                      message: result.error.message,
+                      limitBytes: MAX_ATTACHMENT_BYTES,
+                      actualBytes: attachment.limitState.actualBytes,
+                    },
+                  },
+                  413,
+                );
+              return response(
+                { idempotencyKey: meta.idempotencyKey, ...result },
+                result.ok ? 200 : 422,
+              );
+            },
+          );
+        } catch (cause) {
+          if (cause instanceof MultipartError)
+            return response(
+              { error: { code: cause.code, message: cause.message, ...cause.details } },
+              cause.status,
+            );
+          return timedOut(cause)
+            ? error('request_timeout', 'attachment upload timed out', 504)
+            : error('attachment_upload_failed', 'attachment upload did not complete', 502);
+        }
+      }
       const payload = await body(request);
       if (isResponse(payload)) return payload;
       if (path === '/v1/commands') {

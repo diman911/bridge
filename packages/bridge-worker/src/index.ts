@@ -21,10 +21,12 @@ export interface ResolvedBridgeCredential {
     container_id: string | null;
     container_key: string | null;
     container_name: string | null;
+    settings?: { attachments_branch?: string };
   };
   request_timeout_seconds?: number;
 }
 export interface ControlPlaneRpc {
+  authenticateBridgeIdentity(token: string): Promise<{ caller_id: string } | { error: string }>;
   resolveBridgeCredential(
     token: string,
     projectId: string,
@@ -73,6 +75,7 @@ const productionConnectors = new Map<string, ConnectorFactory>([
         owner: required(context.connector.account_id, 'account_id'),
         repo: required(context.connector.container_key, 'container_key'),
         token: context.credential.token,
+        attachmentBranch: context.connector.settings?.attachments_branch,
       }),
   ],
   [

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   MAX_JSON_REQUEST_BYTES,
+  MAX_ATTACHMENT_BYTES,
   PROTOCOL_VERSION,
   type Connector,
   type ConnectorCommand,
@@ -29,6 +30,7 @@ const connector: Connector = {
 const worker = createEnvelopeBridgeWorker({ connectors: new Map([['fixture', () => connector]]) });
 const env = {
   CONTROL_PLANE: {
+    authenticateBridgeIdentity: async () => ({ caller_id: 'user-123' }),
     resolveBridgeCredential: async () => ({
       caller_id: 'user-123',
       credential: { token: 'provider-token', metadata: null, auth_type: 'oauth' as const },
@@ -44,6 +46,28 @@ const env = {
       },
     }),
   },
+};
+
+function multipart(meta: Record<string, unknown>, file: Uint8Array, boundary = 'test-boundary') {
+  const prefix = new TextEncoder().encode(
+    `--${boundary}\r\nContent-Disposition: form-data; name="meta"\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${String(meta.filename)}"\r\nContent-Type: ${String(meta.contentType)}\r\n\r\n`,
+  );
+  const suffix = new TextEncoder().encode(`\r\n--${boundary}--\r\n`);
+  const body = new Uint8Array(prefix.byteLength + file.byteLength + suffix.byteLength);
+  body.set(prefix);
+  body.set(file, prefix.byteLength);
+  body.set(suffix, prefix.byteLength + file.byteLength);
+  return { body, contentType: `multipart/form-data; boundary=${boundary}` };
+}
+
+const attachmentMeta = {
+  protocolVersion: 1,
+  project_id: 'project-123',
+  tracker_instance_id: 'tracker-456',
+  issueId: 'APP-42',
+  filename: 'capture.har',
+  contentType: 'application/x-http-archive',
+  idempotencyKey: 'attachment-1',
 };
 
 describe('v1 frozen contract fixtures', () => {
@@ -263,5 +287,147 @@ describe('v1 frozen contract fixtures', () => {
       metadata: { deprecation: notice },
     });
     expect(await (await send(worker)).json()).not.toHaveProperty('metadata');
+  });
+});
+
+describe('POST /v1/attachments', () => {
+  it('authenticates before reading any multipart bytes', async () => {
+    const response = await worker.fetch(
+      new Request('https://bridge.example.test/v1/attachments', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer invalid',
+          'content-type': 'not-multipart',
+        },
+        body: 'would fail multipart parsing',
+      }),
+      {
+        CONTROL_PLANE: {
+          authenticateBridgeIdentity: async () => ({ error: 'invalid_token' }),
+          resolveBridgeCredential: env.CONTROL_PLANE.resolveBridgeCredential,
+        },
+      },
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(401);
+  });
+
+  it('resolves credentials after meta and streams one file to the connector', async () => {
+    const events: string[] = [];
+    let received = '';
+    const attaching: Connector = {
+      ...connector,
+      attach: async (attachment) => {
+        events.push('attach');
+        const chunks: Uint8Array[] = [];
+        const reader = attachment.data.getReader();
+        while (true) {
+          const next = await reader.read();
+          if (next.done) break;
+          chunks.push(next.value);
+        }
+        received = new TextDecoder().decode(chunks[0]);
+        return { filename: attachment.filename, ok: true };
+      },
+    };
+    const target = createEnvelopeBridgeWorker({
+      connectors: new Map([['fixture', () => attaching]]),
+    });
+    const requestBody = multipart(attachmentMeta, new TextEncoder().encode('file bytes'));
+    const response = await target.fetch(
+      new Request('https://bridge.example.test/v1/attachments', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer fairlead-token',
+          'content-type': requestBody.contentType,
+        },
+        body: requestBody.body,
+      }),
+      {
+        CONTROL_PLANE: {
+          authenticateBridgeIdentity: async () => {
+            events.push('authenticate');
+            return { caller_id: 'user-123' };
+          },
+          resolveBridgeCredential: async (...args) => {
+            events.push('resolve');
+            return env.CONTROL_PLANE.resolveBridgeCredential(...args);
+          },
+        },
+      },
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      idempotencyKey: attachmentMeta.idempotencyKey,
+      filename: attachmentMeta.filename,
+      ok: true,
+    });
+    expect(events).toEqual(['authenticate', 'resolve', 'attach']);
+    expect(received).toBe('file bytes');
+  });
+
+  it('requires meta to be the first part', async () => {
+    const boundary = 'wrong-order';
+    const body = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="a.txt"\r\nContent-Type: text/plain\r\n\r\nx\r\n--${boundary}--\r\n`;
+    const response = await worker.fetch(
+      new Request('https://bridge.example.test/v1/attachments', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer fairlead-token',
+          'content-type': `multipart/form-data; boundary=${boundary}`,
+        },
+        body,
+      }),
+      env,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: { code: 'invalid_multipart' } });
+  });
+
+  it('returns a structured 413 when streamed bytes exceed the attachment limit', async () => {
+    const consuming: Connector = {
+      ...connector,
+      attach: async (attachment) => {
+        try {
+          const reader = attachment.data.getReader();
+          while (!(await reader.read()).done) {
+            // Consume as the provider fetch would.
+          }
+          return { filename: attachment.filename, ok: true };
+        } catch {
+          return {
+            filename: attachment.filename,
+            ok: false,
+            error: { code: 'attachment_too_large', message: 'attachment exceeds limit' },
+          };
+        }
+      },
+    };
+    const target = createEnvelopeBridgeWorker({
+      connectors: new Map([['fixture', () => consuming]]),
+    });
+    const requestBody = multipart(attachmentMeta, new Uint8Array(MAX_ATTACHMENT_BYTES + 1));
+    const response = await target.fetch(
+      new Request('https://bridge.example.test/v1/attachments', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer fairlead-token',
+          'content-type': requestBody.contentType,
+        },
+        body: requestBody.body,
+      }),
+      env,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(413);
+    expect(await response.json()).toMatchObject({
+      error: {
+        code: 'attachment_too_large',
+        limitBytes: MAX_ATTACHMENT_BYTES,
+        actualBytes: MAX_ATTACHMENT_BYTES + 1,
+      },
+    });
   });
 });

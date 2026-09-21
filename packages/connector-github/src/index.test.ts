@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ConnectorCommand } from '@fairlead/bridge-core';
+import type { ConnectorAttachment, ConnectorCommand } from '@fairlead/bridge-core';
 import { runConnectorConformanceTests } from '@fairlead/bridge-core/conformance';
 import { GithubConnector } from './index.js';
 
@@ -40,6 +40,40 @@ describe('GithubConnector', () => {
       issueUrl: 'https://gh/i/7',
     });
     expect(body).toMatchObject({ title: 'Title' });
+  });
+
+  it('overwrites an attachment on the configured branch using its sha', async () => {
+    const bodies: unknown[] = [];
+    const connector = new GithubConnector({
+      owner: 'acme',
+      repo: 'app',
+      token: 't',
+      attachmentBranch: 'evidence',
+      fetch: (async (url: string, init?: RequestInit) => {
+        if (url.includes('/comments') && (init?.method ?? 'GET') === 'GET')
+          return Response.json([]);
+        if ((init?.method ?? 'GET') === 'GET') return Response.json({ sha: 'old-sha' });
+        bodies.push(JSON.parse(String(init?.body)));
+        return url.includes('/contents/')
+          ? Response.json({ content: { html_url: 'u' } })
+          : Response.json({});
+      }) as typeof fetch,
+    });
+    const attachment: ConnectorAttachment = {
+      protocolVersion: 1,
+      issueId: '7',
+      filename: 'capture.har',
+      contentType: 'application/x-http-archive',
+      data: new Blob(['bytes']).stream(),
+      idempotencyKey: 'k',
+      limitState: { exceeded: false, actualBytes: 5 },
+    };
+    expect(
+      await connector.attach(attachment, { signal: new AbortController().signal }),
+    ).toMatchObject({
+      ok: true,
+    });
+    expect(bodies[0]).toMatchObject({ branch: 'evidence', sha: 'old-sha' });
   });
 
   it('returns description_conflict for an unclosed Fairlead fence', async () => {

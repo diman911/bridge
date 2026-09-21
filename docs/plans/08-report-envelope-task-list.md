@@ -100,8 +100,15 @@ design was dropped (07, "History"). What survives and what does not:
 - **control-plane C3** — `resolveBridgeCredential` returns the caller
   identity (user id).
 - **control-plane C4** — per-project GitHub labels and attachments branch.
+  Bridge expects the resolved connector config to expose it as
+  `connector.settings.attachments_branch`.
   See the control-plane list in
   [chrome-extension tasks](../../../chrome-extension/docs/plans/bridge-report-envelope-tasks.md).
+- **control-plane attachment pre-auth** — B12's authenticate-before-body rule
+  requires a token-only `authenticateBridgeIdentity` RPC before the bounded
+  `meta` part is read. `resolveBridgeCredential` cannot serve this purpose
+  because its routing keys are inside `meta`; its returned `caller_id` is
+  cross-checked after resolution.
 
 ## Order
 

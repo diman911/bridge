@@ -1,10 +1,12 @@
 import type { ConnectorCommand } from './command.js';
+import type { ConnectorAttachment } from './attachment.js';
 import type { CommandType } from './envelope-v1.js';
 import type {
   IntegrationResult,
   Outcome,
   ReadOperation,
   ReadResult,
+  AttachmentResult,
   TargetReference,
 } from './types.js';
 
@@ -33,6 +35,7 @@ export interface ConnectorExecutionOptions {
   attachmentSignal?: AbortSignal;
 }
 export type ConnectorReadOptions = ConnectorExecutionOptions;
+export type ConnectorAttachmentOptions = Pick<ConnectorExecutionOptions, 'signal'>;
 
 /** Implemented per transport (direct in-extension, cloud-mode Bridge worker, private-mode Bridge runner). */
 export interface Connector {
@@ -49,4 +52,8 @@ export interface Connector {
    * Azure DevOps) does.
    */
   read?(operation: ReadOperation, options: ConnectorReadOptions): Promise<ReadResult>;
+  attach?(
+    attachment: ConnectorAttachment,
+    options: ConnectorAttachmentOptions,
+  ): Promise<AttachmentResult>;
 }
