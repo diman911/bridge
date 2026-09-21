@@ -21,11 +21,18 @@ export interface ConnectorCapabilities {
   /** Maps a generic Outcome to the connector's own status/verdict vocabulary. */
   verdictMappings: Partial<Record<Outcome, string>>;
 }
+export interface ConnectorExecutionOptions {
+  /** Connector implementations must pass this to every abortable provider request. */
+  signal: AbortSignal;
+}
 
 /** Implemented per transport (direct in-extension, cloud-mode Bridge worker, private-mode Bridge runner). */
 export interface Connector {
   readonly capabilities: ConnectorCapabilities;
-  execute(command: IntegrationCommand): Promise<IntegrationResult>;
+  execute(
+    command: IntegrationCommand,
+    options: ConnectorExecutionOptions,
+  ): Promise<IntegrationResult>;
   /**
    * Search/fetch — the provider-neutral read contract the generic issue
    * picker needs (source plan, "Protocol v1 scope"). Optional: a

@@ -53,7 +53,7 @@ export function runConnectorConformanceTests(makeConnector: () => Connector): vo
 
       expect(validateIntegrationCommand(command)).toEqual({ ok: true });
 
-      const result = await connector.execute(command);
+      const result = await connector.execute(command, { signal: new AbortController().signal });
       expect(result.idempotencyKey).toBe(command.idempotencyKey);
       expect(typeof result.ok).toBe('boolean');
     });

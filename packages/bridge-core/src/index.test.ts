@@ -18,15 +18,18 @@ describe('bridge-core contract', () => {
       },
     };
 
-    const result = await connector.execute({
-      protocolVersion: PROTOCOL_VERSION,
-      target: { kind: 'none' },
-      outcome: 'observation',
-      actions: [{ type: 'create_issue' }],
-      idempotencyKey: 'test-1',
-      callerId: 'test-user',
-      connectorId: connector.capabilities.connectorId,
-    });
+    const result = await connector.execute(
+      {
+        protocolVersion: PROTOCOL_VERSION,
+        target: { kind: 'none' },
+        outcome: 'observation',
+        actions: [{ type: 'create_issue' }],
+        idempotencyKey: 'test-1',
+        callerId: 'test-user',
+        connectorId: connector.capabilities.connectorId,
+      },
+      { signal: new AbortController().signal },
+    );
 
     expect(result).toEqual({ idempotencyKey: 'test-1', ok: true });
   });
@@ -48,7 +51,10 @@ describe('bridge-core contract', () => {
           issueUrl: 'https://example.test/issue/1',
           attachments: [
             {
-              reference: { mode: 'data_plane_reference', sessionUrl: 'https://dp.example.test/s/1' },
+              reference: {
+                mode: 'data_plane_reference',
+                sessionUrl: 'https://dp.example.test/s/1',
+              },
               ok: false,
               error: { code: 'attachment_too_large', message: 'exceeds provider limit' },
             },
@@ -57,16 +63,19 @@ describe('bridge-core contract', () => {
       },
     };
 
-    const result = await connector.execute({
-      protocolVersion: PROTOCOL_VERSION,
-      target: { kind: 'issue', id: 'ISSUE-1' },
-      outcome: 'failed',
-      actions: [{ type: 'create_issue' }],
-      evidence: { mode: 'data_plane_reference', sessionUrl: 'https://dp.example.test/s/1' },
-      idempotencyKey: 'test-2',
-      callerId: 'test-user',
-      connectorId: connector.capabilities.connectorId,
-    });
+    const result = await connector.execute(
+      {
+        protocolVersion: PROTOCOL_VERSION,
+        target: { kind: 'issue', id: 'ISSUE-1' },
+        outcome: 'failed',
+        actions: [{ type: 'create_issue' }],
+        evidence: { mode: 'data_plane_reference', sessionUrl: 'https://dp.example.test/s/1' },
+        idempotencyKey: 'test-2',
+        callerId: 'test-user',
+        connectorId: connector.capabilities.connectorId,
+      },
+      { signal: new AbortController().signal },
+    );
 
     expect(result.ok).toBe(true);
     expect(result.attachments).toHaveLength(1);

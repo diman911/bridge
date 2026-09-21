@@ -17,7 +17,7 @@ rejected by `validateIntegrationCommand()` with `error.code:
 
 ## Write path: `IntegrationCommand` → `IntegrationResult`
 
-`Connector.execute(command)`. See `TargetReference`, `Outcome`,
+`Connector.execute(command, { signal })`. Every connector must pass the supplied abort signal to abortable provider requests. A timeout remains an unknown provider-side outcome: an aborted client request cannot prove that a provider mutation did not complete.
 `IntegrationAction` in `src/types.ts` for the full enums — `TargetReference`
 covers `issue | test_case | test_run | incident | none`; only `issue` has a
 v1 connector implementation (see the source plan's "Extensibility reserved
@@ -27,6 +27,8 @@ implemented by any v1 connector.
 
 `IntegrationResult.ok` reflects the target mutation only.
 `IntegrationResult.attachments` (`AttachmentResult[]`) carries independent
+`IntegrationError.httpStatus` is limited to retry-safe upstream statuses (`429`, `502`, `503`, `504`); `retryable: true` maps to `503` when no status is supplied. The Worker validates the status at runtime as well as through TypeScript.
+
 per-file outcomes — a command can be `ok: true` with one or more failed
 attachments (partial success, decided 2026-09-21 in the source plan).
 
@@ -43,7 +45,7 @@ connector does). `ReadOperation` is `{ type: 'search', query, ... } |
 
 `validateIntegrationCommand()` (`src/validation.ts`) checks shape and
 protocol-version compatibility only — it does not check whether the
-*specific* resolved connector supports the command's target/action; that's
+_specific_ resolved connector supports the command's target/action; that's
 a `ConnectorCapabilities` check the caller (`bridge-worker`) makes
 separately against the connector it resolved.
 

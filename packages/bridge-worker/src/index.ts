@@ -6,6 +6,7 @@ import {
   type IntegrationError,
   type IntegrationResult,
 } from '@fairlead/bridge-core';
+const RETRYABLE_HTTP_STATUSES = new Set([429, 502, 503, 504]);
 
 export const DEFAULT_REQUEST_TIMEOUT_SECONDS = 15;
 export interface ResolvedBridgeCredential {
@@ -101,7 +102,11 @@ function controlPlaneFailure(idempotencyKey: string, cpError: string): Response 
 }
 function statusForConnectorResult(result: IntegrationResult): number {
   if (result.ok) return 200;
-  if (result.error?.httpStatus) return result.error.httpStatus;
+  if (
+    result.error?.httpStatus !== undefined &&
+    RETRYABLE_HTTP_STATUSES.has(result.error.httpStatus)
+  )
+    return result.error.httpStatus;
   return result.error?.retryable ? 503 : 422;
 }
 function isCommandRequest(value: unknown): value is CommandRequest {
@@ -255,7 +260,7 @@ export function createBridgeWorker(
                   capabilityError.code,
                   capabilityError.message,
                 )
-              : connector.execute(payload.command);
+              : connector.execute(payload.command, { signal });
           },
         );
         return json(result, statusForConnectorResult(result));
