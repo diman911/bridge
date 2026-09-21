@@ -2,6 +2,7 @@
 
 **Status:** 06a done (2026-09-21, uncommitted) — 06b not started
 **Depends on:** [01-stabilize-contract.md](01-stabilize-contract.md), [02-bridge-worker.md](02-bridge-worker.md), [03-connector-jira.md](03-connector-jira.md), [04-connector-github.md](04-connector-github.md)
+**Superseded in part by:** [07-report-envelope-and-versioning.md](07-report-envelope-and-versioning.md) (draft) — the contract 06b switches to may change from field-level commands to a report envelope; do not start 06b before 07 is agreed.
 **Related:** [chrome-extension plan — "Decision", "Delivery phases"](../../../chrome-extension/docs/plans/integration-connector-gateway.md), [chrome-extension `docs/specs/issue-tracker-integration.md`](../../../chrome-extension/docs/specs/issue-tracker-integration.md)
 
 ## Why
