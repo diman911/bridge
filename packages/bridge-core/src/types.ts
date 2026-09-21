@@ -64,6 +64,14 @@ export interface IntegrationCommand {
 export interface IntegrationError {
   code: string;
   message: string;
+  /**
+   * Optional transport classification supplied by a connector. The Bridge
+   * exposes only retry-safe upstream statuses (429/502/503/504); validation
+   * failures continue to use 422.
+   */
+  httpStatus?: 429 | 502 | 503 | 504;
+  /** A transient failure without a more-specific HTTP status. */
+  retryable?: boolean;
 }
 
 /**

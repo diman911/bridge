@@ -54,6 +54,56 @@ function requestTimeoutSeconds(resolved: ResolvedBridgeCredential): number {
     ? value
     : DEFAULT_REQUEST_TIMEOUT_SECONDS;
 }
+function isResolvedBridgeCredential(value: unknown): value is ResolvedBridgeCredential {
+  if (typeof value !== 'object' || value === null) return false;
+  const result = value as Partial<ResolvedBridgeCredential>;
+  return (
+    typeof result.credential === 'object' &&
+    result.credential !== null &&
+    typeof result.credential.token === 'string' &&
+    typeof result.connector === 'object' &&
+    result.connector !== null &&
+    typeof result.connector.catalog_type === 'string'
+  );
+}
+function isControlPlaneError(value: unknown): value is { error: string } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'error' in value &&
+    typeof (value as { error?: unknown }).error === 'string'
+  );
+}
+function controlPlaneFailure(idempotencyKey: string, cpError: string): Response {
+  switch (cpError) {
+    case 'invalid_token':
+      return json(
+        errorResult(idempotencyKey, 'invalid_token', 'credential resolution rejected the token'),
+        401,
+      );
+    case 'not_found':
+    case 'credential_not_found':
+      return json(
+        errorResult(idempotencyKey, 'credential_not_available', 'credential is not available'),
+        404,
+      );
+    case 'unsupported_catalog_type':
+      return json(
+        errorResult(idempotencyKey, 'unsupported_connector', 'tracker type is not supported'),
+        422,
+      );
+    default:
+      return json(
+        errorResult(idempotencyKey, 'control_plane_unavailable', 'credential resolution failed'),
+        503,
+      );
+  }
+}
+function statusForConnectorResult(result: IntegrationResult): number {
+  if (result.ok) return 200;
+  if (result.error?.httpStatus) return result.error.httpStatus;
+  return result.error?.retryable ? 503 : 422;
+}
 function isCommandRequest(value: unknown): value is CommandRequest {
   if (typeof value !== 'object' || value === null) return false;
   const request = value as Partial<CommandRequest>;
@@ -168,14 +218,16 @@ export function createBridgeWorker(
           503,
         );
       }
-      if ('error' in resolved)
+      if (isControlPlaneError(resolved))
+        return controlPlaneFailure(payload.command.idempotencyKey, resolved.error);
+      if (!isResolvedBridgeCredential(resolved))
         return json(
           errorResult(
             payload.command.idempotencyKey,
-            resolved.error,
-            'credential resolution rejected the command',
+            'control_plane_unavailable',
+            'credential resolution returned an invalid response',
           ),
-          resolved.error === 'invalid_token' ? 401 : 403,
+          503,
         );
       const factory = dependencies.connectors.get(resolved.connector.catalog_type);
       if (!factory)
@@ -206,14 +258,20 @@ export function createBridgeWorker(
               : connector.execute(payload.command);
           },
         );
-        return json(result, result.ok ? 200 : 422);
+        return json(result, statusForConnectorResult(result));
       } catch (error) {
         const code =
           error instanceof Error && error.message === 'request_timeout'
             ? 'request_timeout'
             : 'connector_failure';
         return json(
-          errorResult(payload.command.idempotencyKey, code, 'connector execution did not complete'),
+          errorResult(
+            payload.command.idempotencyKey,
+            code,
+            code === 'request_timeout'
+              ? 'connector outcome is unknown; retrying this command can create a duplicate'
+              : 'connector execution did not complete',
+          ),
           code === 'request_timeout' ? 504 : 502,
         );
       }
