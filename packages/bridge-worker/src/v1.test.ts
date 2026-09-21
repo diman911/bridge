@@ -2,7 +2,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { PROTOCOL_VERSION, type Connector } from '@fairlead/bridge-core';
+import { PROTOCOL_VERSION, type Connector, type ConnectorCommand } from '@fairlead/bridge-core';
 import { createEnvelopeBridgeWorker } from './v1.js';
 
 const contract = join(dirname(fileURLToPath(import.meta.url)), '../../bridge-core/contract/v1');
@@ -74,5 +74,65 @@ describe('v1 frozen contract fixtures', () => {
       {} as ExecutionContext,
     );
     expect(response.status).toBe(413);
+  });
+
+  it('hands the connector every selected artifact and never the raw report', async () => {
+    const seen: ConnectorCommand[] = [];
+    const capturing: Connector = {
+      ...connector,
+      execute: async (command) => {
+        seen.push(command);
+        return { idempotencyKey: command.idempotencyKey, ok: true };
+      },
+    };
+    const capturingWorker = createEnvelopeBridgeWorker({
+      connectors: new Map([['fixture', () => capturing]]),
+    });
+    const body = JSON.parse(
+      await readFile(join(contract, 'request-create-issue.json'), 'utf8'),
+    ) as { report: { attachments: unknown[] }; options: Record<string, boolean> };
+    body.report.attachments = [
+      { id: 'a', dataUrl: 'data:image/png;base64,aGVsbG8=' },
+      { id: 'b', dataUrl: 'data:image/webp;base64,aGVsbG8=' },
+    ];
+    body.options = { includeHar: true, includeScreenshots: true };
+    const response = await capturingWorker.fetch(
+      new Request('https://bridge.example.test/v1/commands', {
+        method: 'POST',
+        headers: { authorization: 'Bearer fairlead-token' },
+        body: JSON.stringify(body),
+      }),
+      env,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(200);
+    expect(seen[0].artifacts.map((artifact) => artifact.filename)).toEqual([
+      'network.har',
+      'screenshot-1-a.png',
+      'screenshot-2-b.webp',
+    ]);
+    expect(seen[0]).not.toHaveProperty('report');
+  });
+
+  it('answers an action the resolved connector does not support with 422', async () => {
+    const restricted: Connector = {
+      ...connector,
+      capabilities: { ...connector.capabilities, supportedActions: ['create_issue'] },
+    };
+    const restrictedWorker = createEnvelopeBridgeWorker({
+      connectors: new Map([['fixture', () => restricted]]),
+    });
+    const body = await readFile(join(contract, 'request-update-issue.json'), 'utf8');
+    const response = await restrictedWorker.fetch(
+      new Request('https://bridge.example.test/v1/commands', {
+        method: 'POST',
+        headers: { authorization: 'Bearer fairlead-token' },
+        body,
+      }),
+      env,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ error: { code: 'unsupported_action' } });
   });
 });

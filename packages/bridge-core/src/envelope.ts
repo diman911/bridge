@@ -1,6 +1,6 @@
-import type { EnvelopeIntent, EvidenceOptions, ReportEnvelopePayload } from './envelope-v1.js';
+import type { EnvelopeIntent, EvidenceOptions } from './envelope-v1.js';
 import type { IntegrationError } from './types.js';
-import { decodeReport } from './report.js';
+import { decodeReport, type BridgeReport } from './report.js';
 
 /** Conservative temporary ceiling; B7 replaces this with the measured Worker limit. */
 /** Product ceiling. Cloudflare accepts at least 100 MB, but JSON buffering must stay well below the 128 MB Worker memory limit. */
@@ -29,7 +29,7 @@ export interface InternalIntegrationCommand {
   intent: EnvelopeIntent;
   title: string;
   description: string;
-  report: ReportEnvelopePayload;
+  report: BridgeReport;
   options: EvidenceOptions;
   idempotencyKey: string;
 }
@@ -121,7 +121,7 @@ export function decodeEnvelopeV1(value: unknown): DecodeResult {
       intent,
       title: value.title,
       description: value.description,
-      report: value.report as ReportEnvelopePayload,
+      report: report.value,
       options,
       idempotencyKey,
     },

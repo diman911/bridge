@@ -47,7 +47,10 @@ describe('report envelope v1', () => {
         intent: envelope.intent,
         title: envelope.title,
         description: envelope.description,
-        report: envelope.report,
+        report: expect.objectContaining({
+          schemaVersion: 1,
+          summary: { errors: 1, networkRequests: 2, userActions: 3 },
+        }),
         options: envelope.options,
         idempotencyKey: envelope.idempotencyKey,
       },

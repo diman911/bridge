@@ -1,10 +1,10 @@
 import {
   MAX_ENVELOPE_BYTES,
+  PROTOCOL_VERSION,
   decodeEnvelope,
-  decodeReport,
   mapReportToIssue,
   type Connector,
-  type IntegrationCommand,
+  type EnvelopeIntent,
   type IntegrationError,
   type IntegrationResult,
   type ReadOperation,
@@ -17,6 +17,7 @@ import type {
   ResolvedBridgeCredential,
 } from './index.js';
 
+export const DEFAULT_REQUEST_TIMEOUT_SECONDS = 15;
 type ErrorBody = { error: IntegrationError };
 type ReadEnvelope = {
   protocolVersion: number;
@@ -101,37 +102,45 @@ async function resolve(
     return error('control_plane_unavailable', 'credential resolution failed', 503);
   }
 }
-function base64(bytes: Uint8Array): string {
-  let text = '';
-  for (let start = 0; start < bytes.length; start += 0x8000)
-    text += String.fromCharCode(...bytes.subarray(start, start + 0x8000));
-  return btoa(text);
+function requestTimeoutSeconds(resolved: ResolvedBridgeCredential): number {
+  const value = resolved.request_timeout_seconds;
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 300
+    ? value
+    : DEFAULT_REQUEST_TIMEOUT_SECONDS;
 }
-function legacyCommand(
-  command: ReturnType<typeof mapReportToIssue>,
-  callerId: string,
-): IntegrationCommand {
-  const action = command.intent.action;
-  return {
-    protocolVersion: command.protocolVersion,
-    target: action === 'create_issue' ? { kind: 'none' } : command.intent.target,
-    outcome: 'observation',
-    actions: [{ type: action }],
-    idempotencyKey: command.idempotencyKey,
-    // Caller and connector identity are never request fields. This adapter exists only until B6
-    // removes the retired field-level connector command.
-    callerId,
-    connectorId: 'resolved-by-control-plane',
-    title: command.title,
-    description: command.renderedDescription,
-    evidence: command.artifacts[0]
-      ? {
-          mode: 'direct_attachment',
-          filename: command.artifacts[0].filename,
-          dataUrl: `data:${command.artifacts[0].contentType};base64,${base64(command.artifacts[0].data)}`,
-        }
-      : undefined,
-  };
+async function executeWithinTimeout<T>(
+  timeoutSeconds: number,
+  work: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error('request_timeout'));
+    }, timeoutSeconds * 1000);
+  });
+  try {
+    return await Promise.race([work(controller.signal), timeout]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+function timedOut(cause: unknown): boolean {
+  return cause instanceof Error && cause.message === 'request_timeout';
+}
+function unsupported(
+  connector: Connector,
+  action: EnvelopeIntent['action'],
+): IntegrationError | null {
+  if (connector.capabilities.protocolVersion !== PROTOCOL_VERSION)
+    return {
+      code: 'connector_protocol_mismatch',
+      message: 'resolved connector has an incompatible protocol version',
+    };
+  return connector.capabilities.supportedActions.includes(action)
+    ? null
+    : { code: 'unsupported_action', message: `connector does not support action ${action}` };
 }
 function connectorFor(
   dependencies: BridgeWorkerDependencies,
@@ -174,32 +183,43 @@ export function createEnvelopeBridgeWorker(
             decoded.error.message,
             decoded.error.code === 'envelope_too_large' ? 413 : 400,
           );
-        const report = decodeReport(decoded.value.report);
-        if (!report.ok) return error(report.error.code, report.error.message, 422);
+        const command = decoded.value;
         const credential = await resolve(
           env.CONTROL_PLANE,
           bearer,
-          decoded.value.projectId,
-          decoded.value.trackerInstanceId,
+          command.projectId,
+          command.trackerInstanceId,
         );
         if (isResponse(credential)) return credential;
-        const controller = new AbortController();
-        const connector = connectorFor(dependencies, credential, controller.signal);
-        if (isResponse(connector)) return connector;
         try {
-          const result = await connector.execute(
-            legacyCommand(mapReportToIssue(decoded.value, report.value), credential.caller_id),
-            { signal: controller.signal },
+          const result = await executeWithinTimeout(
+            requestTimeoutSeconds(credential),
+            async (signal): Promise<IntegrationResult | Response> => {
+              const connector = connectorFor(dependencies, credential, signal);
+              if (isResponse(connector)) return connector;
+              const rejected = unsupported(connector, command.intent.action);
+              if (rejected)
+                return { idempotencyKey: command.idempotencyKey, ok: false, error: rejected };
+              return connector.execute(mapReportToIssue(command), { signal });
+            },
           );
+          if (isResponse(result)) return result;
           return response(result, result.ok ? 200 : 422);
-        } catch {
+        } catch (cause) {
+          const timeout = timedOut(cause);
           return response(
             {
-              idempotencyKey: decoded.value.idempotencyKey,
+              idempotencyKey: command.idempotencyKey,
               ok: false,
-              error: { code: 'connector_failure', message: 'connector execution did not complete' },
+              error: timeout
+                ? {
+                    code: 'request_timeout',
+                    message:
+                      'connector outcome is unknown; retrying this command can create a duplicate',
+                  }
+                : { code: 'connector_failure', message: 'connector execution did not complete' },
             },
-            502,
+            timeout ? 504 : 502,
           );
         }
       }
@@ -216,27 +236,34 @@ export function createEnvelopeBridgeWorker(
         payload.tracker_instance_id,
       );
       if (isResponse(credential)) return credential;
-      const controller = new AbortController();
-      const connector = connectorFor(dependencies, credential, controller.signal);
-      if (isResponse(connector)) return connector;
-      if (!connector.read)
-        return error('unsupported_read', 'resolved connector does not implement reads', 422);
-      const operation: ReadOperation =
-        payload.operation.type === 'search'
-          ? {
-              type: 'search',
-              connectorId: connector.capabilities.connectorId,
-              query: payload.operation.query,
-            }
-          : {
-              type: 'fetch',
-              connectorId: connector.capabilities.connectorId,
-              id: payload.operation.id,
-            };
+      const read = payload;
       try {
-        return response(await connector.read(operation, { signal: controller.signal }), 200);
-      } catch {
-        return error('connector_failure', 'connector read did not complete', 502);
+        return await executeWithinTimeout(
+          requestTimeoutSeconds(credential),
+          async (signal): Promise<Response> => {
+            const connector = connectorFor(dependencies, credential, signal);
+            if (isResponse(connector)) return connector;
+            if (!connector.read)
+              return error('unsupported_read', 'resolved connector does not implement reads', 422);
+            const operation: ReadOperation =
+              read.operation.type === 'search'
+                ? {
+                    type: 'search',
+                    connectorId: connector.capabilities.connectorId,
+                    query: read.operation.query,
+                  }
+                : {
+                    type: 'fetch',
+                    connectorId: connector.capabilities.connectorId,
+                    id: read.operation.id,
+                  };
+            return response(await connector.read(operation, { signal }), 200);
+          },
+        );
+      } catch (cause) {
+        return timedOut(cause)
+          ? error('request_timeout', 'connector read timed out', 504)
+          : error('connector_failure', 'connector read did not complete', 502);
       }
     },
   };

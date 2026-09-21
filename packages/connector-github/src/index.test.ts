@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PROTOCOL_VERSION } from '@fairlead/bridge-core';
+import { PROTOCOL_VERSION, mergeMarkdown, type ConnectorCommand } from '@fairlead/bridge-core';
 import { runConnectorConformanceTests } from '@fairlead/bridge-core/conformance';
 import { GithubConnector } from './index.js';
 runConnectorConformanceTests(
@@ -13,20 +13,23 @@ runConnectorConformanceTests(
 );
 
 describe('GithubConnector attachments', () => {
-  const command = {
+  const command: ConnectorCommand = {
     protocolVersion: PROTOCOL_VERSION,
-    target: { kind: 'none' as const },
-    outcome: 'failed' as const,
-    actions: [{ type: 'create_issue' as const }],
-    idempotencyKey: 'k',
-    callerId: 'u',
-    connectorId: 'github',
+    intent: { action: 'create_issue' },
     title: 'T',
     description: 'D',
-    evidence: {
-      mode: 'data_plane_reference' as const,
-      sessionUrl: 'https://dp.example/e/my%20file%231.webm',
+    technicalContext: {
+      url: 'https://app.example.test',
+      startedAt: 'a',
+      stoppedAt: 'b',
+      userActions: 1,
+      networkRequests: 1,
+      errors: 0,
     },
+    artifacts: [
+      { filename: 'my file#1.webm', contentType: 'video/webm', data: new Uint8Array([1, 2, 3]) },
+    ],
+    idempotencyKey: 'k',
   };
   type Call = { method: string; url: string; body?: unknown; signal?: AbortSignal | null };
 
@@ -39,9 +42,7 @@ describe('GithubConnector attachments', () => {
       token: 't',
       fetch: (async (url: string, init?: RequestInit) => {
         const method = init?.method ?? 'GET';
-        const pathname = url.startsWith('https://dp.example')
-          ? url
-          : url.replace('https://api.github.com/repos/acme/app', '');
+        const pathname = url.replace('https://api.github.com/repos/acme/app', '');
         calls.push({
           method,
           url: pathname,
@@ -58,7 +59,6 @@ describe('GithubConnector attachments', () => {
   const opts = () => ({ signal: new AbortController().signal });
   const okRoutes = {
     'POST /issues': () => Response.json({ number: 7, html_url: 'https://gh/i/7' }),
-    'GET https://dp.example': () => new Response('bytes'),
     'GET /git/ref/heads/fairlead-attachments': () => Response.json({}),
     'GET /contents/': () => new Response('', { status: 404 }),
     'PUT /contents/': () => Response.json({ content: { html_url: 'https://gh/blob/main/a.webm' } }),
@@ -125,6 +125,27 @@ describe('GithubConnector attachments', () => {
       ok: false,
       error: { code: 'attachment_branch_failed' },
     });
+  });
+
+  it('reads the existing body on update and keeps a single Fairlead block', async () => {
+    const existing = mergeMarkdown('', 'D', command.technicalContext);
+    const { connector, calls } = setup({
+      'GET /issues/7': () => Response.json({ body: existing }),
+      'PATCH /issues/7': () => Response.json({ number: 7, html_url: 'https://gh/i/7' }),
+    });
+    const result = await connector.execute(
+      {
+        ...command,
+        artifacts: [],
+        intent: { action: 'update_issue', target: { kind: 'issue', id: '7' } },
+      },
+      opts(),
+    );
+    expect(result.ok).toBe(true);
+    const patch = calls.find((c) => c.method === 'PATCH')!;
+    const body = (patch.body as { body: string }).body;
+    expect(body.split('Fairlead technical context')).toHaveLength(2);
+    expect(body.startsWith('D')).toBe(true);
   });
 
   it('forwards the abort signal to read requests', async () => {

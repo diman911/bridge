@@ -1,11 +1,12 @@
 import {
   PROTOCOL_VERSION,
+  mergeAdf,
   type Connector,
+  type ConnectorCommand,
   type ConnectorExecutionOptions,
   type AttachmentResult,
-  type EvidenceReference,
-  type IntegrationCommand,
   type IntegrationResult,
+  type ReportArtifact,
   type ReadOperation,
   type ReadResult,
 } from '@fairlead/bridge-core';
@@ -17,13 +18,6 @@ export interface JiraConnectorConfig {
   email?: string;
   fetch?: typeof fetch;
 }
-const adf = (text: string) => ({
-  version: 1,
-  type: 'doc',
-  content: text
-    .split(/\n\n+/)
-    .map((p) => ({ type: 'paragraph', content: p ? [{ type: 'text', text: p }] : [] })),
-});
 export class JiraConnector implements Connector {
   readonly capabilities = {
     protocolVersion: PROTOCOL_VERSION,
@@ -55,69 +49,84 @@ export class JiraConnector implements Connector {
     return r.ok;
   }
   async execute(
-    command: IntegrationCommand,
+    command: ConnectorCommand,
     o: ConnectorExecutionOptions,
   ): Promise<IntegrationResult> {
-    const a = command.actions.find((x) => x.type === 'create_issue' || x.type === 'update_issue');
-    if (!a || !command.title || command.description === undefined)
-      return {
-        idempotencyKey: command.idempotencyKey,
-        ok: false,
-        error: {
-          code: 'invalid_issue_command',
-          message: 'create/update require title and description',
-        },
-      };
-    const key = command.target.kind === 'issue' ? command.target.id : undefined;
-    if (a.type === 'update_issue' && !key)
-      return {
-        idempotencyKey: command.idempotencyKey,
-        ok: false,
-        error: { code: 'missing_issue_id', message: 'update requires issue target' },
-      };
-    const r = await this.f(
-      a.type === 'create_issue'
-        ? `${this.base}/rest/api/3/issue`
-        : `${this.base}/rest/api/3/issue/${encodeURIComponent(key!)}`,
-      {
-        method: a.type === 'create_issue' ? 'POST' : 'PUT',
+    const fail = (code: string, message: string): IntegrationResult => ({
+      idempotencyKey: command.idempotencyKey,
+      ok: false,
+      error: { code, message },
+    });
+    const { intent } = command;
+    if (intent.action !== 'create_issue' && intent.action !== 'update_issue')
+      return fail('unsupported_action', `connector does not support action ${intent.action}`);
+    let key: string;
+    if (intent.action === 'create_issue') {
+      const r = await this.f(`${this.base}/rest/api/3/issue`, {
+        method: 'POST',
         headers: this.h(true),
-        body: JSON.stringify(
-          a.type === 'create_issue'
-            ? {
-                fields: {
-                  project: { key: this.c.projectKey },
-                  summary: command.title,
-                  description: adf(command.description),
-                  issuetype: { name: 'Bug' },
-                },
-              }
-            : { fields: { summary: command.title, description: adf(command.description) } },
-        ),
+        body: JSON.stringify({
+          fields: {
+            project: { key: this.c.projectKey },
+            summary: command.title,
+            description: mergeAdf(null, command.description, command.technicalContext),
+            issuetype: { name: 'Bug' },
+          },
+        }),
         signal: o.signal,
-      },
-    );
-    if (!r.ok)
-      return {
-        idempotencyKey: command.idempotencyKey,
-        ok: false,
-        error: { code: 'jira_request_failed', message: `${r.status} ${r.statusText}` },
+      });
+      if (!r.ok) return fail('jira_request_failed', `${r.status} ${r.statusText}`);
+      key = ((await r.json()) as { key: string }).key;
+    } else {
+      key = intent.target.id;
+      const url = `${this.base}/rest/api/3/issue/${encodeURIComponent(key)}`;
+      const current = await this.f(`${url}?fields=description,project`, {
+        headers: this.h(),
+        signal: o.signal,
+      });
+      if (!current.ok)
+        return fail('jira_request_failed', `${current.status} ${current.statusText}`);
+      const existing = (await current.json()) as {
+        fields?: { description?: unknown; project?: { key?: string } };
       };
-    const resolved = a.type === 'create_issue' ? ((await r.json()) as { key: string }).key : key!;
-    const attachments = command.evidence ? [await this.attach(resolved, command.evidence, o.signal)] : undefined;
+      if (existing.fields?.project?.key !== this.c.projectKey)
+        return fail('issue_outside_project', 'issue is outside configured Jira project');
+      const r = await this.f(url, {
+        method: 'PUT',
+        headers: this.h(true),
+        body: JSON.stringify({
+          fields: {
+            summary: command.title,
+            description: mergeAdf(
+              existing.fields?.description,
+              command.description,
+              command.technicalContext,
+            ),
+          },
+        }),
+        signal: o.signal,
+      });
+      if (!r.ok) return fail('jira_request_failed', `${r.status} ${r.statusText}`);
+    }
+    const attachments: AttachmentResult[] = [];
+    for (const artifact of command.artifacts)
+      attachments.push(await this.attach(key, artifact, o.signal));
     return {
       idempotencyKey: command.idempotencyKey,
       ok: true,
-      issueUrl: `${this.base}/browse/${resolved}`,
-      attachments,
+      issueUrl: `${this.base}/browse/${key}`,
+      attachments: attachments.length ? attachments : undefined,
     };
   }
-  async attach(key: string, e: EvidenceReference, signal: AbortSignal): Promise<AttachmentResult> {
+  async attach(
+    key: string,
+    artifact: ReportArtifact,
+    signal: AbortSignal,
+  ): Promise<AttachmentResult> {
+    const filename = artifact.filename;
     try {
       const form = new FormData();
-      const source = e.mode === 'data_plane_reference' ? await this.f(e.sessionUrl, { signal }) : await fetch(e.dataUrl, { signal });
-      if (!source.ok) return { reference: e, ok: false, error: { code: 'attachment_fetch_failed', message: String(source.status) } };
-      form.append('file', await source.blob(), e.mode === 'data_plane_reference' ? new URL(e.sessionUrl).pathname.split('/').pop() || 'evidence' : e.filename);
+      form.append('file', new Blob([artifact.data], { type: artifact.contentType }), filename);
       const r = await this.f(
         `${this.base}/rest/api/3/issue/${encodeURIComponent(key)}/attachments`,
         {
@@ -128,15 +137,15 @@ export class JiraConnector implements Connector {
         },
       );
       return r.ok
-        ? { reference: e, ok: true }
+        ? { filename, ok: true }
         : {
-            reference: e,
+            filename,
             ok: false,
             error: { code: 'attachment_upload_failed', message: String(r.status) },
           };
     } catch {
       return {
-        reference: e,
+        filename,
         ok: false,
         error: { code: 'attachment_upload_failed', message: 'attachment request failed' },
       };

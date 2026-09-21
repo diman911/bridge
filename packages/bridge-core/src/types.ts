@@ -31,42 +31,6 @@ export type TargetReference =
 export type Outcome =
   'passed' | 'failed' | 'blocked' | 'incomplete' | 'verified' | 'not_verified' | 'observation';
 
-export type IntegrationAction =
-  | { type: 'create_issue' }
-  | { type: 'update_issue' }
-  | { type: 'transition_issue'; toStatus: string }
-  | { type: 'add_comment' }
-  | { type: 'attach_evidence' }
-  | { type: 'write_test_result' }
-  | { type: 'share_only' };
-
-/**
- * By default a reference to sanitized evidence already in the Data Plane —
- * never the full recording body. `direct_attachment` exists only for the
- * `direct` transport (no external Bridge involved).
- */
-export type EvidenceReference =
-  | { mode: 'data_plane_reference'; sessionUrl: string }
-  | { mode: 'direct_attachment'; dataUrl: string; filename: string };
-
-export interface IntegrationCommand {
-  /** Must equal PROTOCOL_VERSION for this package's build to execute it. */
-  protocolVersion: number;
-  target: TargetReference;
-  outcome: Outcome;
-  actions: IntegrationAction[];
-  evidence?: EvidenceReference;
-  /** Caller-generated; connectors must treat re-delivery of the same key as a no-op. */
-  idempotencyKey: string;
-  callerId: string;
-  connectorId: string;
-  /** Standard v1 issue fields; issue connectors require both for writes. */
-  title?: string;
-  /** Standard v1 issue fields; issue connectors require both for writes. */
-  description?: string;
-  projectContext?: Record<string, string>;
-}
-
 export interface IntegrationError {
   code: string;
   message: string;
@@ -87,7 +51,8 @@ export interface IntegrationError {
  * (2026-09-21): partial success."
  */
 export interface AttachmentResult {
-  reference: EvidenceReference;
+  /** Name of the report-derived file this outcome is for. */
+  filename: string;
   ok: boolean;
   error?: IntegrationError;
 }
@@ -120,21 +85,8 @@ export interface IssueSummary {
   title: string;
   url: string;
   status?: string;
-  /**
-   * Additive fields populated by `fetch` (never required by `search`), so the
-   * extension's edit flow can round-trip an issue without a provider-specific
-   * client. Extensions must tolerate their absence.
-   */
-  /** Plain-text description for display, with any Fairlead-authored section stripped. */
+  /** Plain-text description populated by `fetch`; extensions must tolerate its absence. */
   description?: string;
-  /** Provider-native description (string, or a structured document such as Jira ADF), for lossless re-edit. */
-  rawDescription?: string | Record<string, unknown>;
-  attachments?: IssueAttachmentSummary[];
-}
-
-export interface IssueAttachmentSummary {
-  id: string;
-  filename: string;
 }
 
 export interface ReadResult {

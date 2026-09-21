@@ -1,10 +1,11 @@
 import {
   PROTOCOL_VERSION,
+  mergeHtml,
   type AttachmentResult,
   type Connector,
+  type ConnectorCommand,
   type ConnectorExecutionOptions,
-  type EvidenceReference,
-  type IntegrationCommand,
+  type ReportArtifact,
   type IntegrationResult,
   type ReadOperation,
   type ReadResult,
@@ -54,94 +55,78 @@ export class AzureDevOpsConnector implements Connector {
       })
     ).ok;
   }
-  async execute(c: IntegrationCommand, o: ConnectorExecutionOptions): Promise<IntegrationResult> {
-    const a = c.actions.find((x) => x.type === 'create_issue' || x.type === 'update_issue');
-    if (!a || !c.title || c.description === undefined)
-      return {
-        idempotencyKey: c.idempotencyKey,
-        ok: false,
-        error: {
-          code: 'invalid_issue_command',
-          message: 'create/update require title and description',
-        },
-      };
-    const id = c.target.kind === 'issue' ? c.target.id : undefined;
-    if (a.type === 'update_issue' && !id)
-      return {
-        idempotencyKey: c.idempotencyKey,
-        ok: false,
-        error: { code: 'missing_issue_id', message: 'update requires issue target' },
-      };
+  async execute(c: ConnectorCommand, o: ConnectorExecutionOptions): Promise<IntegrationResult> {
+    const fail = (code: string, message: string): IntegrationResult => ({
+      idempotencyKey: c.idempotencyKey,
+      ok: false,
+      error: { code, message },
+    });
+    const { intent } = c;
+    if (intent.action !== 'create_issue' && intent.action !== 'update_issue')
+      return fail('unsupported_action', `connector does not support action ${intent.action}`);
+    const create = intent.action === 'create_issue';
+    const itemUrl = create
+      ? undefined
+      : `${this.base}/_apis/wit/workitems/${encodeURIComponent(intent.target.id)}?api-version=7.1`;
+    let existing = '';
+    if (itemUrl) {
+      const current = await this.f(`${itemUrl}&fields=System.Description`, {
+        headers: { Authorization: this.auth(), Accept: 'application/json' },
+        signal: o.signal,
+      });
+      if (!current.ok) return fail('azure_devops_request_failed', String(current.status));
+      existing =
+        ((await current.json()) as { fields?: { 'System.Description'?: string } }).fields?.[
+          'System.Description'
+        ] ?? '';
+    }
+    const op = create ? 'add' : 'replace';
     const patch = [
-      ...(a.type === 'create_issue'
-        ? [{ op: 'add', path: '/fields/System.WorkItemType', value: 'Bug' }]
-        : []),
+      ...(create ? [{ op: 'add', path: '/fields/System.WorkItemType', value: 'Bug' }] : []),
+      { op, path: '/fields/System.Title', value: c.title },
       {
-        op: a.type === 'create_issue' ? 'add' : 'replace',
-        path: '/fields/System.Title',
-        value: c.title,
-      },
-      {
-        op: a.type === 'create_issue' ? 'add' : 'replace',
+        op,
         path: '/fields/System.Description',
-        value: c.description,
+        value: mergeHtml(existing, c.description, c.technicalContext),
       },
     ];
-    const r = await this.f(
-      a.type === 'create_issue'
-        ? `${this.base}/_apis/wit/workitems/$Bug?api-version=7.1`
-        : `${this.base}/_apis/wit/workitems/${encodeURIComponent(id!)}?api-version=7.1`,
-      {
-        method: a.type === 'create_issue' ? 'POST' : 'PATCH',
-        headers: this.headers(),
-        body: JSON.stringify(patch),
-        signal: o.signal,
-      },
-    );
-    if (!r.ok)
-      return {
-        idempotencyKey: c.idempotencyKey,
-        ok: false,
-        error: { code: 'azure_devops_request_failed', message: String(r.status) },
-      };
+    const r = await this.f(itemUrl ?? `${this.base}/_apis/wit/workitems/$Bug?api-version=7.1`, {
+      method: create ? 'POST' : 'PATCH',
+      headers: this.headers(),
+      body: JSON.stringify(patch),
+      signal: o.signal,
+    });
+    if (!r.ok) return fail('azure_devops_request_failed', String(r.status));
     const d = (await r.json()) as { id: number; url: string };
-    const attachments = c.evidence
-      ? [await this.attach(String(d.id), c.evidence, o.signal)]
-      : undefined;
-    return { idempotencyKey: c.idempotencyKey, ok: true, issueUrl: this.webUrl(d.id), attachments };
+    const attachments: AttachmentResult[] = [];
+    for (const artifact of c.artifacts)
+      attachments.push(await this.attach(String(d.id), artifact, o.signal));
+    return {
+      idempotencyKey: c.idempotencyKey,
+      ok: true,
+      issueUrl: this.webUrl(d.id),
+      attachments: attachments.length ? attachments : undefined,
+    };
   }
   private async attach(
     id: string,
-    e: EvidenceReference,
+    artifact: ReportArtifact,
     signal: AbortSignal,
   ): Promise<AttachmentResult> {
+    const name = artifact.filename;
     try {
-      const source =
-        e.mode === 'data_plane_reference'
-          ? await this.f(e.sessionUrl, { signal })
-          : await fetch(e.dataUrl, { signal });
-      if (!source.ok)
-        return {
-          reference: e,
-          ok: false,
-          error: { code: 'attachment_fetch_failed', message: String(source.status) },
-        };
-      const name =
-        e.mode === 'data_plane_reference'
-          ? new URL(e.sessionUrl).pathname.split('/').pop() || 'evidence'
-          : e.filename;
       const upload = await this.f(
         `${this.base}/_apis/wit/attachments?fileName=${encodeURIComponent(name)}&api-version=7.1`,
         {
           method: 'POST',
           headers: { Authorization: this.auth(), 'Content-Type': 'application/octet-stream' },
-          body: await source.arrayBuffer(),
+          body: artifact.data as Uint8Array<ArrayBuffer>,
           signal,
         },
       );
       if (!upload.ok)
         return {
-          reference: e,
+          filename: name,
           ok: false,
           error: { code: 'attachment_upload_failed', message: String(upload.status) },
         };
@@ -162,15 +147,15 @@ export class AzureDevOpsConnector implements Connector {
         },
       );
       return link.ok
-        ? { reference: e, ok: true }
+        ? { filename: name, ok: true }
         : {
-            reference: e,
+            filename: name,
             ok: false,
             error: { code: 'attachment_link_failed', message: String(link.status) },
           };
     } catch {
       return {
-        reference: e,
+        filename: name,
         ok: false,
         error: { code: 'attachment_upload_failed', message: 'attachment request failed' },
       };

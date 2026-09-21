@@ -20,24 +20,47 @@ describe('report decoder and issue mapping', () => {
     const decoded = decodeReport(report);
     expect(decoded).toMatchObject({ ok: true });
     if (!decoded.ok) return;
-    const mapped = mapReportToIssue(
-      {
-        protocolVersion: 1,
-        projectId: 'p',
-        trackerInstanceId: 't',
-        intent: { action: 'create_issue' },
-        title: 'Checkout fails',
-        description: 'User summary',
-        report,
-        options: { includeHar: true, includeScreenshots: true },
-        idempotencyKey: 'key',
-      },
-      decoded.value,
-    );
-    expect(mapped.renderedDescription).toContain('Fairlead technical context');
+    const mapped = mapReportToIssue({
+      protocolVersion: 1,
+      projectId: 'p',
+      trackerInstanceId: 't',
+      intent: { action: 'create_issue' },
+      title: 'Checkout fails',
+      description: 'User summary',
+      report: decoded.value,
+      options: { includeHar: true, includeScreenshots: true },
+      idempotencyKey: 'key',
+    });
+    expect(mapped.technicalContext).toMatchObject({ url: report.meta.url, errors: 2 });
     expect(mapped.artifacts.map((artifact) => artifact.filename)).toEqual([
       'network.har',
-      'screenshot-capture-1.png',
+      'screenshot-1-capture-1.png',
+    ]);
+  });
+
+  it('labels screenshots by their real type, sanitizes ids, and returns every artifact', () => {
+    const decoded = decodeReport({
+      ...report,
+      attachments: [
+        { id: '../../x', dataUrl: 'data:image/jpeg;charset=utf-8;base64,aGVsbG8=' },
+        { id: 'b', dataUrl: 'data:text/html;base64,aGVsbG8=' },
+      ],
+    });
+    if (!decoded.ok) throw new Error('decode failed');
+    const mapped = mapReportToIssue({
+      protocolVersion: 1,
+      projectId: 'p',
+      trackerInstanceId: 't',
+      intent: { action: 'create_issue' },
+      title: 't',
+      description: '',
+      report: decoded.value,
+      options: { includeHar: true, includeScreenshots: true },
+      idempotencyKey: 'key',
+    });
+    expect(mapped.artifacts.map((a) => [a.filename, a.contentType])).toEqual([
+      ['network.har', 'application/x-http-archive'],
+      ['screenshot-1-______x.jpg', 'image/jpeg'],
     ]);
   });
 

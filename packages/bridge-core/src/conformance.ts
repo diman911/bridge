@@ -1,23 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { isCompatibleProtocolVersion } from './types.js';
-import { validateIntegrationCommand } from './validation.js';
 import type { Connector } from './connector.js';
-import type { IntegrationAction, IntegrationCommand, TargetReference } from './types.js';
-
-function makeTargetReference(kind: TargetReference['kind']): TargetReference {
-  return kind === 'none' ? { kind: 'none' } : { kind, id: 'conformance-test-id' };
-}
-
-/** `transition_issue` carries a required `toStatus`; every other action type is bare. */
-function makeAction(type: IntegrationAction['type']): IntegrationAction {
-  return type === 'transition_issue' ? { type, toStatus: 'Done' } : { type };
-}
+import type { ConnectorCommand } from './report-mapping.js';
 
 /**
  * Conformance suite a connector package (connector-jira, connector-github,
  * connector-azure-devops, ...) imports and runs against its own
- * `execute()` — see docs/plans/01-stabilize-contract.md's acceptance
- * criteria. Checks the contract-level shape every connector must honor;
+ * `execute()`. Checks the contract-level shape every connector must honor;
  * it does not check provider-specific correctness (real API calls,
  * field-mapping fidelity, ...), which belongs in that connector's own
  * tests.
@@ -27,6 +16,27 @@ function makeAction(type: IntegrationAction['type']): IntegrationAction {
  *   runConnectorConformanceTests(() => new MyConnector());
  */
 export function runConnectorConformanceTests(makeConnector: () => Connector): void {
+  const command = (connector: Connector, action: 'create_issue' | 'update_issue' | 'add_comment') =>
+    ({
+      protocolVersion: connector.capabilities.protocolVersion,
+      intent:
+        action === 'create_issue'
+          ? { action }
+          : { action, target: { kind: 'issue', id: 'conformance-test-id' } },
+      title: 'Conformance title',
+      description: 'Conformance description',
+      technicalContext: {
+        url: 'https://app.example.test',
+        startedAt: '2026-09-21T12:00:00Z',
+        stoppedAt: '2026-09-21T12:01:00Z',
+        userActions: 1,
+        networkRequests: 1,
+        errors: 0,
+      },
+      artifacts: [],
+      idempotencyKey: 'conformance-test-key',
+    }) satisfies ConnectorCommand;
+
   describe('bridge-core connector conformance', () => {
     it('declares a compatible protocol version', () => {
       const connector = makeConnector();
@@ -39,23 +49,25 @@ export function runConnectorConformanceTests(makeConnector: () => Connector): vo
       expect(connector.capabilities.supportedActions.length).toBeGreaterThan(0);
     });
 
-    it('executes a minimal command built from its own declared capabilities without throwing', async () => {
+    it('executes a minimal command for its first declared action without throwing', async () => {
       const connector = makeConnector();
-      const command: IntegrationCommand = {
-        protocolVersion: connector.capabilities.protocolVersion,
-        target: makeTargetReference(connector.capabilities.supportedTargets[0]),
-        outcome: 'observation',
-        actions: [makeAction(connector.capabilities.supportedActions[0])],
-        idempotencyKey: 'conformance-test-key',
-        callerId: 'conformance-test-caller',
-        connectorId: connector.capabilities.connectorId,
-      };
-
-      expect(validateIntegrationCommand(command)).toEqual({ ok: true });
-
-      const result = await connector.execute(command, { signal: new AbortController().signal });
-      expect(result.idempotencyKey).toBe(command.idempotencyKey);
+      const built = command(connector, connector.capabilities.supportedActions[0]);
+      const result = await connector.execute(built, { signal: new AbortController().signal });
+      expect(result.idempotencyKey).toBe(built.idempotencyKey);
       expect(typeof result.ok).toBe('boolean');
+    });
+
+    it('answers an undeclared action with a typed failure instead of throwing', async () => {
+      const connector = makeConnector();
+      const undeclared = (['create_issue', 'update_issue', 'add_comment'] as const).find(
+        (action) => !connector.capabilities.supportedActions.includes(action),
+      );
+      if (!undeclared) return;
+      const result = await connector.execute(command(connector, undeclared), {
+        signal: new AbortController().signal,
+      });
+      expect(result.ok).toBe(false);
+      expect(result.error?.code).toBe('unsupported_action');
     });
   });
 }
