@@ -51,7 +51,7 @@ export interface IntegrationError {
  * (2026-09-21): partial success."
  */
 export interface AttachmentResult {
-  /** Name of the report-derived file this outcome is for. */
+  /** Name of the uploaded file this outcome is for. */
   filename: string;
   ok: boolean;
   error?: IntegrationError;

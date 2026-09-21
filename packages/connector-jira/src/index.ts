@@ -1,13 +1,10 @@
 import {
   PROTOCOL_VERSION,
-  mapWithConcurrency,
   mergeAdf,
   type Connector,
   type ConnectorCommand,
   type ConnectorExecutionOptions,
-  type AttachmentResult,
   type IntegrationResult,
-  type ReportArtifact,
   type ReadOperation,
   type ReadResult,
 } from '@fairlead/bridge-core';
@@ -58,19 +55,17 @@ export class JiraConnector implements Connector {
       ok: false,
       error: { code, message },
     });
-    const { intent } = command;
-    if (intent.action !== 'create_issue' && intent.action !== 'update_issue')
-      return fail('unsupported_action', `connector does not support action ${intent.action}`);
+    const { type } = command;
     let key: string;
-    if (intent.action === 'create_issue') {
+    if (type === 'create_issue') {
       const r = await this.f(`${this.base}/rest/api/3/issue`, {
         method: 'POST',
         headers: this.h(true),
         body: JSON.stringify({
           fields: {
             project: { key: this.c.projectKey },
-            summary: command.title,
-            description: mergeAdf(null, command.description, command.technicalContext),
+            summary: command.subject,
+            description: mergeAdf(null, command.description, command.technicalSection ?? ''),
             issuetype: { name: 'Bug' },
           },
         }),
@@ -79,7 +74,7 @@ export class JiraConnector implements Connector {
       if (!r.ok) return fail('jira_request_failed', `${r.status} ${r.statusText}`);
       key = ((await r.json()) as { key: string }).key;
     } else {
-      key = intent.target.id;
+      key = command.issueId;
       const url = `${this.base}/rest/api/3/issue/${encodeURIComponent(key)}`;
       const current = await this.f(`${url}?fields=description,project`, {
         headers: this.h(),
@@ -97,11 +92,11 @@ export class JiraConnector implements Connector {
         headers: this.h(true),
         body: JSON.stringify({
           fields: {
-            summary: command.title,
+            ...(command.subject === undefined ? {} : { summary: command.subject }),
             description: mergeAdf(
               existing.fields?.description,
-              command.description,
-              command.technicalContext,
+              command.description ?? '',
+              command.technicalSection ?? '',
             ),
           },
         }),
@@ -109,48 +104,11 @@ export class JiraConnector implements Connector {
       });
       if (!r.ok) return fail('jira_request_failed', `${r.status} ${r.statusText}`);
     }
-    const attachments = await mapWithConcurrency(command.artifacts, 3, (artifact) =>
-      this.attach(key, artifact, o.attachmentSignal ?? o.signal),
-    );
     return {
       idempotencyKey: command.idempotencyKey,
       ok: true,
       issueUrl: `${this.base}/browse/${key}`,
-      attachments: attachments.length ? attachments : undefined,
     };
-  }
-  async attach(
-    key: string,
-    artifact: ReportArtifact,
-    signal: AbortSignal,
-  ): Promise<AttachmentResult> {
-    const filename = artifact.filename;
-    try {
-      const form = new FormData();
-      form.append('file', new Blob([artifact.data], { type: artifact.contentType }), filename);
-      const r = await this.f(
-        `${this.base}/rest/api/3/issue/${encodeURIComponent(key)}/attachments`,
-        {
-          method: 'POST',
-          headers: { ...this.h(), 'X-Atlassian-Token': 'no-check' },
-          body: form,
-          signal,
-        },
-      );
-      return r.ok
-        ? { filename, ok: true }
-        : {
-            filename,
-            ok: false,
-            error: { code: 'attachment_upload_failed', message: String(r.status) },
-          };
-    } catch {
-      return {
-        filename,
-        ok: false,
-        error: { code: 'attachment_upload_failed', message: 'attachment request failed' },
-      };
-    }
   }
   async read(op: ReadOperation, options: ConnectorExecutionOptions): Promise<ReadResult> {
     if (op.type === 'search') {

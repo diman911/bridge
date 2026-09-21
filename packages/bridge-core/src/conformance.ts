@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isCompatibleProtocolVersion } from './types.js';
 import type { Connector } from './connector.js';
-import type { ConnectorCommand } from './report-mapping.js';
+import type { ConnectorCommand } from './command.js';
 
 /**
  * Conformance suite a connector package (connector-jira, connector-github,
@@ -16,26 +16,28 @@ import type { ConnectorCommand } from './report-mapping.js';
  *   runConnectorConformanceTests(() => new MyConnector());
  */
 export function runConnectorConformanceTests(makeConnector: () => Connector): void {
-  const command = (connector: Connector, action: 'create_issue' | 'update_issue' | 'add_comment') =>
-    ({
-      protocolVersion: connector.capabilities.protocolVersion,
-      intent:
-        action === 'create_issue'
-          ? { action }
-          : { action, target: { kind: 'issue', id: 'conformance-test-id' } },
-      title: 'Conformance title',
-      description: 'Conformance description',
-      technicalContext: {
-        url: 'https://app.example.test',
-        startedAt: '2026-09-21T12:00:00Z',
-        stoppedAt: '2026-09-21T12:01:00Z',
-        userActions: 1,
-        networkRequests: 1,
-        errors: 0,
-      },
-      artifacts: [],
-      idempotencyKey: 'conformance-test-key',
-    }) satisfies ConnectorCommand;
+  const command = (
+    connector: Connector,
+    action: 'create_issue' | 'update_issue',
+  ): ConnectorCommand =>
+    action === 'create_issue'
+      ? {
+          protocolVersion: connector.capabilities.protocolVersion,
+          type: action,
+          subject: 'Conformance title',
+          description: 'Conformance description',
+          technicalSection: 'Conformance technical section',
+          idempotencyKey: 'conformance-test-key',
+        }
+      : {
+          protocolVersion: connector.capabilities.protocolVersion,
+          type: action,
+          issueId: 'conformance-test-id',
+          subject: 'Conformance title',
+          description: 'Conformance description',
+          technicalSection: 'Conformance technical section',
+          idempotencyKey: 'conformance-test-key',
+        };
 
   describe('bridge-core connector conformance', () => {
     it('declares a compatible protocol version', () => {
@@ -59,7 +61,7 @@ export function runConnectorConformanceTests(makeConnector: () => Connector): vo
 
     it('answers an undeclared action with a typed failure instead of throwing', async () => {
       const connector = makeConnector();
-      const undeclared = (['create_issue', 'update_issue', 'add_comment'] as const).find(
+      const undeclared = (['create_issue', 'update_issue'] as const).find(
         (action) => !connector.capabilities.supportedActions.includes(action),
       );
       if (!undeclared) return;

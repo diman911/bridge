@@ -29,7 +29,7 @@ design was dropped (07, "History"). What survives and what does not:
 
 ## Phase 2 — narrow contract
 
-- [ ] **B9 — Reshape wire types and decoder.** Depends on: none.
+- [x] **B9 — Reshape wire types and decoder.** Depends on: none.
   - `create_issue` / `update_issue` commands per 07 D2: `subject`,
     `description`, `technicalSection`, `issueId`, `onConflict`,
     `idempotencyKey`, `project_id`, `tracker_instance_id`, `protocolVersion`.
@@ -38,7 +38,7 @@ design was dropped (07, "History"). What survives and what does not:
   - Internal command model updated accordingly.
   - v1 is redefined in place (nothing shipped): replace the frozen fixtures
     and keep the CI replay.
-- [ ] **B10 — Remove report handling.** Depends on: B9.
+- [x] **B10 — Remove report handling.** Depends on: B9.
   - Delete report decoding, report → issue mapping, report schema-version
     constants and envelope-size constants; update exports.
   - Keep the text-length limits.
@@ -61,8 +61,15 @@ design was dropped (07, "History"). What survives and what does not:
   - Stream to the provider where the Worker allows; connectors take bytes
     instead of report-derived files. GitHub: commit to the configured branch
     (config from control-plane C4); Azure DevOps attachments API; Jira native.
-  - Authenticate and resolve identity before reading the body.
-- [ ] **B13 — Deprecation format.** Depends on: B9.
+  - Authenticate the identity token before reading the body. Require the
+    bounded `meta` part first, resolve the credential/config from it, then
+    stream the `file` part with an incremental size check; do not use
+    `request.formData()`, which buffers the complete multipart body.
+  - Replacement is upload-new-first, delete-old-second. A failed upload keeps
+    the old file. A failed cleanup after upload returns success plus a
+    structured `previous_version_not_removed` warning; replacement is not
+    atomic.
+- [x] **B13 — Deprecation format.** Depends on: B9.
   - `metadata.deprecation = { successorVersion, endOfSupportAt, message? }`,
     replacing the field names used so far.
 - [ ] **B14 — Re-measure limits.** Depends on: B12.

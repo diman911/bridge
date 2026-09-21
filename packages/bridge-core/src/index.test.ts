@@ -4,18 +4,10 @@ import type { Connector, ConnectorCommand, IntegrationResult } from './index.js'
 
 const command: ConnectorCommand = {
   protocolVersion: PROTOCOL_VERSION,
-  intent: { action: 'create_issue' },
-  title: 'T',
+  type: 'create_issue',
+  subject: 'T',
   description: 'D',
-  technicalContext: {
-    url: 'https://app.example.test',
-    startedAt: '2026-09-21T12:00:00Z',
-    stoppedAt: '2026-09-21T12:01:00Z',
-    userActions: 1,
-    networkRequests: 2,
-    errors: 0,
-  },
-  artifacts: [],
+  technicalSection: 'Technical details',
   idempotencyKey: 'test-1',
 };
 const capabilities = {

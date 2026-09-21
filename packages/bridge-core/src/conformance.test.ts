@@ -15,7 +15,7 @@ runConnectorConformanceTests((): Connector => ({
     verdictMappings: {},
   },
   execute: async (command) =>
-    command.intent.action === 'create_issue'
+    command.type === 'create_issue'
       ? { idempotencyKey: command.idempotencyKey, ok: true }
       : {
           idempotencyKey: command.idempotencyKey,

@@ -1,5 +1,5 @@
-import type { EnvelopeIntent } from './envelope-v1.js';
-import type { ConnectorCommand } from './report-mapping.js';
+import type { ConnectorCommand } from './command.js';
+import type { CommandType } from './envelope-v1.js';
 import type {
   IntegrationResult,
   Outcome,
@@ -18,7 +18,7 @@ export interface ConnectorCapabilities {
   connectorId: string;
   displayName: string;
   supportedTargets: TargetReference['kind'][];
-  supportedActions: EnvelopeIntent['action'][];
+  supportedActions: CommandType[];
   /** Maps a generic Outcome to the connector's own status/verdict vocabulary. */
   verdictMappings: Partial<Record<Outcome, string>>;
 }

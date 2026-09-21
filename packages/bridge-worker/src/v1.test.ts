@@ -60,23 +60,7 @@ describe('v1 frozen contract fixtures', () => {
     }
   });
 
-  it('rejects a body that exceeds the envelope ceiling before JSON parsing', async () => {
-    const response = await worker.fetch(
-      new Request('https://bridge.example.test/v1/commands', {
-        method: 'POST',
-        headers: {
-          authorization: 'Bearer fairlead-token',
-          'content-length': String(11 * 1024 * 1024),
-        },
-        body: '{}',
-      }),
-      env,
-      {} as ExecutionContext,
-    );
-    expect(response.status).toBe(413);
-  });
-
-  it('hands the connector every selected artifact and never the raw report', async () => {
+  it('hands the connector only narrow command fields', async () => {
     const seen: ConnectorCommand[] = [];
     const capturing: Connector = {
       ...connector,
@@ -90,12 +74,7 @@ describe('v1 frozen contract fixtures', () => {
     });
     const body = JSON.parse(
       await readFile(join(contract, 'request-create-issue.json'), 'utf8'),
-    ) as { report: { attachments: unknown[] }; options: Record<string, boolean> };
-    body.report.attachments = [
-      { id: 'a', dataUrl: 'data:image/png;base64,aGVsbG8=' },
-      { id: 'b', dataUrl: 'data:image/webp;base64,aGVsbG8=' },
-    ];
-    body.options = { includeHar: true, includeScreenshots: true };
+    ) as Record<string, unknown>;
     const response = await capturingWorker.fetch(
       new Request('https://bridge.example.test/v1/commands', {
         method: 'POST',
@@ -106,12 +85,9 @@ describe('v1 frozen contract fixtures', () => {
       {} as ExecutionContext,
     );
     expect(response.status).toBe(200);
-    expect(seen[0].artifacts.map((artifact) => artifact.filename)).toEqual([
-      'network.har',
-      'screenshot-1-a.png',
-      'screenshot-2-b.webp',
-    ]);
+    expect(seen[0]).toMatchObject({ type: 'create_issue', subject: body.subject });
     expect(seen[0]).not.toHaveProperty('report');
+    expect(seen[0]).not.toHaveProperty('projectId');
   });
 
   it('answers an action the resolved connector does not support with 422', async () => {
@@ -161,7 +137,7 @@ describe('v1 frozen contract fixtures', () => {
     expect(signals?.attachmentSignal).not.toBe(signals?.signal);
   });
 
-  it('authenticates before decoding the report', async () => {
+  it('authenticates before decoding the command', async () => {
     let resolved = 0;
     const rejecting = {
       CONTROL_PLANE: {
@@ -174,7 +150,7 @@ describe('v1 frozen contract fixtures', () => {
     const body = JSON.parse(
       await readFile(join(contract, 'request-create-issue.json'), 'utf8'),
     ) as Record<string, unknown>;
-    body.report = { schema_version: 99 }; // would be a 422 if decoded first
+    body.subject = ''; // would be a 422 if decoded first
     const response = await worker.fetch(
       new Request('https://bridge.example.test/v1/commands', {
         method: 'POST',
@@ -189,7 +165,11 @@ describe('v1 frozen contract fixtures', () => {
   });
 
   it('returns the deprecation notice for a version inside its support window', async () => {
-    const notice = { protocolVersion: 1, endOfSupport: '2027-03-21', message: 'v2 is available' };
+    const notice = {
+      successorVersion: 2,
+      endOfSupportAt: '2027-03-21',
+      message: 'v2 is available',
+    };
     const deprecated = createEnvelopeBridgeWorker({
       connectors: new Map([['fixture', () => connector]]),
       deprecations: new Map([[1, notice]]),

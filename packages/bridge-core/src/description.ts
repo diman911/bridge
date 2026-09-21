@@ -31,7 +31,8 @@ export interface AdfDocument {
   content: AdfNode[];
 }
 
-function contextLines(context: TechnicalContext): string[] {
+function contextLines(context: TechnicalContext | string): string[] {
+  if (typeof context === 'string') return context.split('\n');
   return [
     `URL: ${context.url}`,
     `Recorded: ${context.startedAt} – ${context.stoppedAt}`,
@@ -87,7 +88,7 @@ function mergeMarked(
 export function mergeMarkdown(
   existing: string,
   description: string,
-  context: TechnicalContext,
+  context: TechnicalContext | string,
 ): string {
   const block = [
     BLOCK_BEGIN,
@@ -105,7 +106,7 @@ export function mergeMarkdown(
 export function mergeHtml(
   existing: string,
   description: string,
-  context: TechnicalContext,
+  context: TechnicalContext | string,
 ): string {
   const items = contextLines(context)
     .map((line) => `<li>${escapeHtml(line)}</li>`)
@@ -157,7 +158,7 @@ function inlineNodes(paragraph: string): AdfNode[] {
 export function mergeAdf(
   existing: unknown,
   description: string,
-  context: TechnicalContext,
+  context: TechnicalContext | string,
 ): AdfDocument {
   const doc: AdfDocument = isAdfDocument(existing)
     ? existing

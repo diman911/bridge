@@ -1,12 +1,11 @@
 import {
-  MAX_ENVELOPE_BYTES,
   DEPRECATED_PROTOCOL_VERSIONS,
   ENVELOPE_DECODERS,
   PROTOCOL_VERSION,
   decodeEnvelope,
-  mapReportToIssue,
+  toConnectorCommand,
   type Connector,
-  type EnvelopeIntent,
+  type CommandType,
   type IntegrationError,
   type IntegrationResult,
   type ReadOperation,
@@ -21,7 +20,6 @@ import type {
 
 export const DEFAULT_REQUEST_TIMEOUT_SECONDS = 15;
 const BACKSTOP_GRACE_MS = 2000;
-type ErrorBody = { error: IntegrationError };
 type ReadEnvelope = {
   protocolVersion: number;
   project_id: string;
@@ -29,7 +27,7 @@ type ReadEnvelope = {
   operation: { type: 'search'; query: string } | { type: 'fetch'; id: string };
 };
 
-function response(body: IntegrationResult | ErrorBody | unknown, status: number): Response {
+function response(body: unknown, status: number): Response {
   return Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
 }
 function error(code: string, message: string, status: number): Response {
@@ -66,15 +64,10 @@ function readEnvelope(value: unknown): value is ReadEnvelope {
     (operation.type === 'fetch' && typeof operation.id === 'string')
   );
 }
-async function body(request: Request): Promise<unknown | Response> {
-  const declared = Number(request.headers.get('content-length'));
-  if (Number.isFinite(declared) && declared > MAX_ENVELOPE_BYTES)
-    return error('envelope_too_large', `envelope must not exceed ${MAX_ENVELOPE_BYTES} bytes`, 413);
+async function body(request: Request): Promise<unknown> {
   const text = await request.text();
-  if (new TextEncoder().encode(text).byteLength > MAX_ENVELOPE_BYTES)
-    return error('envelope_too_large', `envelope must not exceed ${MAX_ENVELOPE_BYTES} bytes`, 413);
   try {
-    return JSON.parse(text) as unknown;
+    return JSON.parse(text);
   } catch {
     return error('invalid_json', 'request body must be JSON', 400);
   }
@@ -90,8 +83,13 @@ async function resolve(
 ): Promise<ResolvedBridgeCredential | Response> {
   try {
     const value = await cp.resolveBridgeCredential(bearer, projectId, instanceId);
-    if (typeof value === 'object' && value !== null && 'error' in value) {
-      const code = (value as { error: string }).error;
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      'error' in value &&
+      typeof value.error === 'string'
+    ) {
+      const code = value.error;
       return error(
         code,
         'credential resolution rejected the request',
@@ -151,10 +149,7 @@ function timedOut(cause: unknown): boolean {
     cause instanceof Error && (cause.message === 'request_timeout' || cause.name === 'AbortError')
   );
 }
-function unsupported(
-  connector: Connector,
-  action: EnvelopeIntent['action'],
-): IntegrationError | null {
+function unsupported(connector: Connector, action: CommandType): IntegrationError | null {
   if (connector.capabilities.protocolVersion !== PROTOCOL_VERSION)
     return {
       code: 'connector_protocol_mismatch',
@@ -187,7 +182,7 @@ function connectorFor(
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
-/** Routing fields only; the full envelope (report included) is decoded after authentication. */
+/** Routing fields only; the command is decoded after authentication. */
 function commandRouting(
   payload: unknown,
 ): { version: number; projectId: string; trackerInstanceId: string } | Response {
@@ -213,7 +208,7 @@ function commandRouting(
   };
 }
 
-/** Version-routed envelope API. Report bodies are never logged or persisted. */
+/** Version-routed API. Command bodies are never logged or persisted. */
 export function createEnvelopeBridgeWorker(
   dependencies: BridgeWorkerDependencies,
 ): ExportedHandler<BridgeWorkerEnv> {
@@ -224,7 +219,7 @@ export function createEnvelopeBridgeWorker(
     return deprecation ? { ...result, metadata: { deprecation } } : result;
   };
   return {
-    async fetch(request, env): Promise<Response> {
+    async fetch(request: Request, env: BridgeWorkerEnv): Promise<Response> {
       const path = new URL(request.url).pathname;
       if (request.method !== 'POST' || (path !== '/v1/commands' && path !== '/v1/reads'))
         return response({ error: 'not_found' }, 404);
@@ -235,7 +230,7 @@ export function createEnvelopeBridgeWorker(
       if (path === '/v1/commands') {
         const routing = commandRouting(payload);
         if (isResponse(routing)) return routing;
-        // Authenticate before the report is decoded, validated or materialized.
+        // Resolve the authenticated caller before decoding caller-controlled command fields.
         const credential = await resolve(
           env.CONTROL_PLANE,
           bearer,
@@ -248,7 +243,7 @@ export function createEnvelopeBridgeWorker(
           return error(
             decoded.error.code,
             decoded.error.message,
-            decoded.error.code === 'envelope_too_large' ? 413 : 400,
+            decoded.error.code === 'invalid_command' ? 422 : 400,
           );
         const command = decoded.value;
         try {
@@ -258,10 +253,10 @@ export function createEnvelopeBridgeWorker(
             async (signal, attachmentSignal): Promise<IntegrationResult | Response> => {
               const connector = connectorFor(dependencies, credential, signal);
               if (isResponse(connector)) return connector;
-              const rejected = unsupported(connector, command.intent.action);
+              const rejected = unsupported(connector, command.type);
               if (rejected)
                 return { idempotencyKey: command.idempotencyKey, ok: false, error: rejected };
-              return connector.execute(mapReportToIssue(command), { signal, attachmentSignal });
+              return connector.execute(toConnectorCommand(command), { signal, attachmentSignal });
             },
           );
           if (isResponse(result)) return result;

@@ -1,12 +1,9 @@
 import {
   PROTOCOL_VERSION,
-  mapWithConcurrency,
   mergeHtml,
-  type AttachmentResult,
   type Connector,
   type ConnectorCommand,
   type ConnectorExecutionOptions,
-  type ReportArtifact,
   type IntegrationResult,
   type ReadOperation,
   type ReadResult,
@@ -62,13 +59,10 @@ export class AzureDevOpsConnector implements Connector {
       ok: false,
       error: { code, message },
     });
-    const { intent } = c;
-    if (intent.action !== 'create_issue' && intent.action !== 'update_issue')
-      return fail('unsupported_action', `connector does not support action ${intent.action}`);
-    const create = intent.action === 'create_issue';
+    const create = c.type === 'create_issue';
     const itemUrl = create
       ? undefined
-      : `${this.base}/_apis/wit/workitems/${encodeURIComponent(intent.target.id)}?api-version=7.1`;
+      : `${this.base}/_apis/wit/workitems/${encodeURIComponent(c.issueId)}?api-version=7.1`;
     let existing = '';
     if (itemUrl) {
       const current = await this.f(`${itemUrl}&fields=System.Description`, {
@@ -84,11 +78,11 @@ export class AzureDevOpsConnector implements Connector {
     const op = create ? 'add' : 'replace';
     const patch = [
       ...(create ? [{ op: 'add', path: '/fields/System.WorkItemType', value: 'Bug' }] : []),
-      { op, path: '/fields/System.Title', value: c.title },
+      ...(c.subject === undefined ? [] : [{ op, path: '/fields/System.Title', value: c.subject }]),
       {
         op,
         path: '/fields/System.Description',
-        value: mergeHtml(existing, c.description, c.technicalContext),
+        value: mergeHtml(existing, c.description ?? '', c.technicalSection ?? ''),
       },
     ];
     const r = await this.f(itemUrl ?? `${this.base}/_apis/wit/workitems/$Bug?api-version=7.1`, {
@@ -99,88 +93,11 @@ export class AzureDevOpsConnector implements Connector {
     });
     if (!r.ok) return fail('azure_devops_request_failed', String(r.status));
     const d = (await r.json()) as { id: number; url: string };
-    const attachments = await this.attachAll(
-      String(d.id),
-      c.artifacts,
-      o.attachmentSignal ?? o.signal,
-    );
     return {
       idempotencyKey: c.idempotencyKey,
       ok: true,
       issueUrl: this.webUrl(d.id),
-      attachments: attachments.length ? attachments : undefined,
     };
-  }
-  /**
-   * Uploads run in parallel; the work item is then linked once, since concurrent
-   * PATCHes of one work item can conflict on its revision.
-   */
-  private async attachAll(
-    id: string,
-    artifacts: ReportArtifact[],
-    signal: AbortSignal,
-  ): Promise<AttachmentResult[]> {
-    const uploads = await mapWithConcurrency(artifacts, 3, async (artifact) => {
-      try {
-        const upload = await this.f(
-          `${this.base}/_apis/wit/attachments?fileName=${encodeURIComponent(artifact.filename)}&api-version=7.1`,
-          {
-            method: 'POST',
-            headers: { Authorization: this.auth(), 'Content-Type': 'application/octet-stream' },
-            body: artifact.data as Uint8Array<ArrayBuffer>,
-            signal,
-          },
-        );
-        if (!upload.ok)
-          return {
-            artifact,
-            error: { code: 'attachment_upload_failed', message: String(upload.status) },
-          };
-        return { artifact, url: ((await upload.json()) as { url: string }).url };
-      } catch {
-        return {
-          artifact,
-          error: { code: 'attachment_upload_failed', message: 'attachment request failed' },
-        };
-      }
-    });
-    const uploaded = uploads.filter(
-      (u): u is { artifact: ReportArtifact; url: string } => 'url' in u,
-    );
-    let linkError: AttachmentResult['error'];
-    if (uploaded.length) {
-      try {
-        const link = await this.f(
-          `${this.base}/_apis/wit/workitems/${encodeURIComponent(id)}?api-version=7.1`,
-          {
-            method: 'PATCH',
-            headers: this.headers(),
-            body: JSON.stringify(
-              uploaded.map((u) => ({
-                op: 'add',
-                path: '/relations/-',
-                value: {
-                  rel: 'AttachedFile',
-                  url: u.url,
-                  attributes: { comment: u.artifact.filename },
-                },
-              })),
-            ),
-            signal,
-          },
-        );
-        if (!link.ok) linkError = { code: 'attachment_link_failed', message: String(link.status) };
-      } catch {
-        linkError = { code: 'attachment_link_failed', message: 'attachment request failed' };
-      }
-    }
-    return uploads.map((u) =>
-      'url' in u
-        ? linkError
-          ? { filename: u.artifact.filename, ok: false, error: linkError }
-          : { filename: u.artifact.filename, ok: true }
-        : { filename: u.artifact.filename, ok: false, error: u.error },
-    );
   }
   async read(op: ReadOperation, options: ConnectorExecutionOptions): Promise<ReadResult> {
     if (op.type === 'fetch') {
