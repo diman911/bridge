@@ -1,98 +1,134 @@
-# 07 — Report-envelope contract, multi-version support, CP-owned config
+# 07 — Narrow issue contract, attachment commands, multi-version support, CP-owned config
 
-**Status:** Accepted (D1–D3 and the resolutions below) — nothing here is implemented yet.
+_(File name kept from the first draft, which proposed sending the whole
+report; that design was dropped — see "History" — the name stays so links
+remain stable.)_
+
+**Status:** Accepted — nothing here is implemented yet. Task list: [08](08-report-envelope-task-list.md).
 **Depends on:** [01-stabilize-contract.md](01-stabilize-contract.md) (revises its output)
-**Revises:** [01](01-stabilize-contract.md), [02](02-bridge-worker.md), [06](06-retire-extension-direct-transport.md), and the source plan's "Protocol v1 scope" / "Responsibility split" in [`chrome-extension/docs/plans/integration-connector-gateway.md`](../../../chrome-extension/docs/plans/integration-connector-gateway.md)
+**Revises:** [01](01-stabilize-contract.md), [02](02-bridge-worker.md), [06](06-retire-extension-direct-transport.md), and the source plan's "Protocol v1 scope" in [`chrome-extension/docs/plans/integration-connector-gateway.md`](../../../chrome-extension/docs/plans/integration-connector-gateway.md)
+**Decision record (extension side):** [ADR-012](../../../chrome-extension/docs/architecture/decisions/ADR-012-narrow-bridge-contract.md)
 
 ## Why
 
-Three problems found while doing 06a (extension-side `Connector` adapters):
+Found while doing 06a (extension-side `Connector` adapters):
 
 1. **Release cycles differ.** The extension ships through Chrome Web Store
-   and lives on user machines for months; Bridge deploys continuously. A
-   single strict `protocolVersion === 1` check means every contract change
-   breaks installed extensions.
-2. **The field-level contract is the wrong seam.** `IntegrationCommand`
-   carries `title`/`description`/`evidence` refs, so every new thing a
-   tracker issue should contain needs a contract change _and_ an extension
-   release. It also assumes the recording lives in Data Plane
-   (`data_plane_reference`) — but a user may never store to Data Plane.
-3. **The extension sends things Bridge already knows.** `connectorId`,
-   `projectContext`, `callerId` are supplied by the caller and then
-   cross-checked against Control Plane (`bridge-worker` already resolves the
-   connector from `resolved.connector.catalog_type` and the project/repo from
-   `container_key`). Caller-supplied values are redundant at best and a trust
-   problem at worst (source plan: never trust connector config supplied by
-   the extension).
+   and stays installed for months; Bridge deploys continuously. A strict
+   `protocolVersion === 1` check breaks installed extensions on every
+   contract change.
+2. **The extension sends things Bridge already knows.** `connectorId`,
+   `projectContext`, `callerId` are supplied by the caller and cross-checked
+   against Control Plane (`bridge-worker` already resolves the connector
+   from `resolved.connector.catalog_type` and the container from
+   `container_key`). Caller-supplied values are redundant and a trust
+   problem (source plan: never trust connector config supplied by the
+   extension).
+3. **Evidence must not depend on Data Plane.** A user may never store a
+   session there, so a `data_plane_reference` cannot be the only way to
+   carry a HAR or screenshot.
+4. **The contract for a tracker should be narrow.** A tracker needs a
+   subject, a description and files — not the whole recording.
 
-## Proposal
+## Decisions
 
 ### D1 — Versioned wire, one implementation
 
-- Version lives in the route: `POST /v1/commands`, later `/v2/commands`.
-  Payload keeps `protocolVersion` for defence in depth; mismatch → `400`.
+- Version lives in the route: `POST /v1/commands`, `POST /v1/attachments`,
+  `POST /v1/reads`; later `/v2/…`. JSON payloads also carry `protocolVersion`
+  as defence in depth; mismatch → `400`.
 - **No per-version copies of handler code.** Each version has a thin
-  _decoder_ that maps its wire shape onto a single internal model. Connectors,
-  report mapping and Control Plane resolution exist once and speak only the
-  internal model.
-- Per-version artifacts that _are_ snapshotted: JSON schema and frozen
-  request/response fixtures (`packages/bridge-core/contract/v1/…`), replayed in
-  CI against the current worker so an old version cannot regress silently.
-- `isCompatibleProtocolVersion` becomes membership in a supported set.
-- **Support policy:** current + previous major, each with a published
-  end-of-support date (CWS review lag means the window must be generous —
-  proposal: 6 months after the successor ships). A deprecated version answers
-  normally with a `deprecation` field in the response.
-- **Discovery:** supported versions are returned in Control Plane routing data
-  (or `GET /capabilities`); the extension picks the highest version both sides
-  speak and tolerates unknown additive fields.
-- Because nothing calls `bridge-worker` in production yet, the shape below is
-  defined as **v1 in place** — no v1→v2 migration is needed now; the
-  machinery exists so the _next_ change doesn't break installed clients.
+  _decoder_ mapping its wire shape onto one internal model. Connectors and
+  Control Plane resolution exist once and speak only the internal model.
+- Snapshotted per version: JSON schema and frozen request/response fixtures
+  (`packages/bridge-core/contract/v1/…`), replayed in CI against the current
+  worker so an old version cannot regress silently.
+- `isCompatibleProtocolVersion` is membership in a supported set.
+- **Support policy:** current + previous major; 6 months after a successor
+  ships (CWS review lag). A version inside its window answers normally with
+  `metadata.deprecation`:
 
-### D2 — Envelope carrying the report; Bridge extracts
+  ```json
+  { "successorVersion": 2, "endOfSupportAt": "2027-03-01", "message": "…" }
+  ```
 
-Replace the field-level `IntegrationCommand` with an envelope:
+- **Discovery:** supported versions are part of Control Plane routing data
+  (or `GET /capabilities`); the extension picks the highest version both
+  sides speak and tolerates unknown additive fields.
+- Nothing calls `bridge-worker` in production yet, so the shape below is
+  defined as **v1 in place** — no v1→v2 migration now; the machinery exists
+  so the _next_ change doesn't break installed clients.
 
-| Field                  | Source    | Notes                                                                                  |
-| ---------------------- | --------- | -------------------------------------------------------------------------------------- |
-| `project_id`           | extension | already used by `bridge-worker`                                                        |
-| `tracker_instance_id`  | extension | from CP routing data                                                                   |
-| `intent`               | extension | `{ action, target }` — `create_issue`, `update_issue`, `add_comment`; target id if any |
-| `title`, `description` | extension | **user-authored** text (edited in the UI) — stays explicit, not derived                |
-| `report`               | extension | the sanitized `Report` (`chrome-extension/src/core/types/report.ts`), schema-versioned |
-| `options`              | extension | which evidence to attach (HAR, screenshots), tracker-agnostic flags                    |
-| `idempotencyKey`       | extension | observability only in v1 (no dedup)                                                    |
+### D2 — Narrow contract: text commands and separate attachment commands
 
-Bridge owns: rendering the technical block from `report`, producing HAR and
-screenshot files from it, provider formatting (ADF vs Markdown vs ADO HTML),
-and — for updates — fetching the existing issue itself and merging (so the
-extension no longer needs `rawDescription`).
+Bridge never receives a `Report`. It receives text and files.
 
-Consequences:
+**`POST /v1/commands`** (JSON) — two commands:
 
-- Mapping changes ship with a Bridge deploy, not a CWS release.
-- Works with no Data Plane; `data_plane_reference` / `direct_attachment`
-  evidence modes are dropped from the contract.
-- The report's own `schema_version` becomes a versioning axis Bridge must
-  decode (same decoder pattern as D1).
-- **Privacy invariant changes.** `AGENTS.md` names Data Plane ingest as the
-  extension's only outbound sink. This adds Bridge. Requires an ADR in
-  `chrome-extension`, and confirmation that the report is fully sanitized
-  _before_ it leaves the extension (it already is for Data Plane upload —
-  verify it is the same code path).
-- **Size.** HAR + screenshots can be large. Confirm the Worker request-body
-  limit for the deployed plan, define a max envelope size and a
-  `413`-with-guidance behaviour; option: strip heavy sections the tracker
-  won't use (`options` selects them) client-side.
-- **Responsibility split flips.** The source plan says the extension decides
-  content and Bridge only transforms. Under D2, Bridge decides how a report
-  becomes issue content; the extension still owns the user's title and
-  description. The source plan section needs rewriting.
+| Field                 | `create_issue` | `update_issue` | Notes                                                                 |
+| --------------------- | -------------- | -------------- | --------------------------------------------------------------------- |
+| `protocolVersion`     | ✔              | ✔              |                                                                       |
+| `project_id`          | ✔              | ✔              | from the extension's session                                          |
+| `tracker_instance_id` | ✔              | ✔              | from CP routing data                                                  |
+| `type`                | `create_issue` | `update_issue` |                                                                       |
+| `issueId`             | —              | ✔              | provider issue key/number                                             |
+| `subject`             | ✔              | optional       | max length per `bridge-core` constant                                 |
+| `description`         | ✔              | optional       | Markdown, user-authored; provider conversion is Bridge's job          |
+| `technicalSection`    | optional       | optional       | Markdown body of the Fairlead block (see "Managed block" below)       |
+| `onConflict`          | —              | optional       | `append` \| `replace`; only on retry after `409 description_conflict` |
+| `idempotencyKey`      | ✔              | ✔              | observability only in v1 (no deduplication)                           |
+
+`technicalSection` is the one field beyond subject/description. It exists so
+the block can be replaced without touching the user's text — the extension
+regenerates it on every submit, while the user's description is often
+unchanged.
+
+**`POST /v1/attachments`** (`multipart/form-data`) — one file per request:
+
+- Part `meta` (JSON): `protocolVersion`, `project_id`, `tracker_instance_id`,
+  `issueId`, `filename`, `contentType`, `idempotencyKey`.
+- Part `file`: the bytes.
+- Idempotent by `(issue, filename)`: uploading the same filename to the same
+  issue replaces the earlier file. This also covers re-submits after an
+  update, so no list/delete-attachment operation is part of the contract.
+- One file per request keeps per-file limits, per-file retry and partial
+  success natural: the issue exists first; each attachment reports its own
+  result. A failed attachment never invalidates the issue.
+- The provider mechanism is the connector's business (Jira native upload;
+  GitHub has no issue-attachment API, so the connector commits to a
+  configured branch and links — configuration from Control Plane, see D3;
+  Azure DevOps attachments API).
+
+**`POST /v1/reads`** — search / fetch, unchanged in intent. `IssueSummary`
+carries `id`, `title`, `url`, `status?` and (on fetch) `description?`; no
+provider-native raw description or attachment listing is exposed.
+
+**Managed block.** The Fairlead technical block is a fenced Markdown block
+whose info string is `fairlead` — the marker the extension already writes
+(Jira ADF `codeBlock` with language `fairlead`, GitHub fenced block), so
+issues filed by the current extension stay editable. On `update_issue`
+Bridge reads the existing issue and:
+
+| Existing issue state               | Behaviour                                                        |
+| ---------------------------------- | ---------------------------------------------------------------- |
+| Intact block                       | Replace the block with `technicalSection`; leave everything else |
+| No block                           | Append a new block                                               |
+| Malformed block (unclosed, nested) | `409 description_conflict`; caller may retry with `onConflict`   |
+
+Jira ADF is preserved: when `description` is omitted Bridge edits only the
+block node and `subject`; when present it replaces the non-block content.
+
+**Limits.** Text fields have length limits; each attachment has
+`MAX_ATTACHMENT_BYTES`. Both are named constants in `bridge-core`, measured
+against the Worker limits (task B7) and set below the platform cap —
+Cloudflare answers an oversize body with its own `413` before application
+code runs, so a structured error
+`{ code: 'attachment_too_large', limitBytes, actualBytes }` only works below
+that cap. The extension prechecks size with the same constants.
 
 ### D3 — Connector identity and config come from Control Plane
 
-Removed from the request: `connectorId`, `projectContext`, `callerId`.
+Removed from every request: `connectorId`, `projectContext`, `callerId`.
 
 | Was in command   | Now                                                                    |
 | ---------------- | ---------------------------------------------------------------------- |
@@ -104,44 +140,32 @@ The extension learns catalog type, display name and capabilities from CP
 routing data — for UI only. `supportsCommand` in `bridge-worker` drops the
 `command.connectorId !== capabilities.connectorId` check.
 
-Open: per-user profile options that today live in the extension (GitHub
-labels, attachments branch). Either move to CP tracker-instance/project
-config or keep as explicit `options`. Recommendation: CP config if they are
-per-project, `options` if per-report.
+Per-user profile options that live in the extension today (GitHub labels,
+attachments branch) move to per-project tracker configuration in Control
+Plane.
 
 ## Impact on existing work
 
-| Artifact                                               | Change                                                                                                                                                                        |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bridge-core` `types.ts`, `validation.ts`, conformance | new envelope + internal model; `EvidenceReference`, `TargetReference` breadth kept only if still needed                                                                       |
-| `bridge-core` `IssueSummary` extension (`cbf92d1`)     | `rawDescription`/`attachments` no longer needed for edit; keep `description`, review the rest                                                                                 |
-| `bridge-worker`                                        | version-routed handlers/decoders, report mapping layer, drop connectorId check, derive callerId                                                                               |
-| Connectors (03–05)                                     | receive the internal model, not the wire envelope                                                                                                                             |
-| `chrome-extension` 06a adapters                        | `Jira/GithubDirectConnector` implement the old field-level `Connector`; superseded by an HTTP Bridge client — decide whether to keep them as the `direct` transport until 06b |
-| `chrome-extension` vendored `bridge-contract/`         | shrinks to envelope + result types; drift check unchanged                                                                                                                     |
-| Read path                                              | `bridge-worker` has only `POST /commands`; search/fetch need an endpoint (`/v1/reads`) — still open                                                                           |
+| Artifact                                               | Change                                                                                                                        |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `bridge-core` envelope/decoder work started on disk    | Reshape to the commands above; drop the `report` field                                                                        |
+| `bridge-core` report decoding and report→issue mapping | Not needed under D2; remove. The description-merge helpers (Markdown/HTML/ADF block merge) are reusable for the managed block |
+| `bridge-worker`                                        | `/v1/commands`, `/v1/attachments`, `/v1/reads`; CP-derived identity; drop `connectorId` check                                 |
+| Connectors (03–05)                                     | Internal model; update reads the existing issue and merges the block; attachment upload                                       |
+| `chrome-extension` 06a adapters                        | Field-level `Connector` adapters stay only as the transitional `direct` path; 06b becomes an HTTP Bridge client               |
+| `chrome-extension` vendored `bridge-contract/`         | Shrinks to wire types and constants; drift check unchanged                                                                    |
 
-## Resolved (was: open questions)
+## Open points
 
-| Question                          | Resolution                                                                                                           |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Support window                    | Current + previous major; 6 months after a successor ships                                                           |
-| Read path                         | Separate `POST /v1/reads` for search/fetch; the versioning and decoder rules of D1 apply to it too                   |
-| GitHub labels, attachments branch | Per-project config in Control Plane, not per-report `options`                                                        |
-| Rendered preview from Bridge      | Not in v1                                                                                                            |
-| Max envelope size                 | Still to be measured against the Worker request-body limit; must be a named constant in `bridge-core` before release |
-
-## Still open
-
-- Where do the user's title/description edits diverge from the
-  Bridge-rendered block on re-edit (round-tripping the Fairlead section)?
 - Product confirmation of the N/N−1 and 6-month policy.
+- Exact numeric limits (request body, per-attachment) after task B7.
+- Whether the Worker can stream an attachment to the provider within its
+  memory/CPU limits for the largest expected HAR; if not, define a
+  per-attachment ceiling accordingly.
 
-## Proposed task split
+## History
 
-1. Agree D1–D3 (this file) and update the source plan's contract sections.
-2. ADR in `chrome-extension`: report leaves the extension to Bridge.
-3. `bridge-core`: envelope, internal model, version registry, frozen fixtures.
-4. `bridge-worker`: `/v1/commands` decoder, report mapping, CP-derived identity.
-5. Connector packages adapt to the internal model.
-6. Extension: HTTP Bridge client (replaces 06b's planned Connector wiring).
+- 2026-09-21 first draft: whole `Report` sent to Bridge (ADR-011). Dropped
+  the same day — it widened what leaves the device, added a second
+  versioning axis (report `schema_version`) and a request-size problem for
+  no gain over sending only what a tracker needs. Replaced by D2 above.
