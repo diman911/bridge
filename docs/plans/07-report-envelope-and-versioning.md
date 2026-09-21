@@ -1,6 +1,6 @@
 # 07 — Report-envelope contract, multi-version support, CP-owned config
 
-**Status:** DRAFT — proposed, not yet agreed. Nothing here is implemented.
+**Status:** Accepted (D1–D3 and the resolutions below) — nothing here is implemented yet.
 **Depends on:** [01-stabilize-contract.md](01-stabilize-contract.md) (revises its output)
 **Revises:** [01](01-stabilize-contract.md), [02](02-bridge-worker.md), [06](06-retire-extension-direct-transport.md), and the source plan's "Protocol v1 scope" / "Responsibility split" in [`chrome-extension/docs/plans/integration-connector-gateway.md`](../../../chrome-extension/docs/plans/integration-connector-gateway.md)
 
@@ -121,15 +121,21 @@ per-project, `options` if per-report.
 | `chrome-extension` vendored `bridge-contract/`         | shrinks to envelope + result types; drift check unchanged                                                                                                                     |
 | Read path                                              | `bridge-worker` has only `POST /commands`; search/fetch need an endpoint (`/v1/reads`) — still open                                                                           |
 
-## Open questions
+## Resolved (was: open questions)
 
-- Is `Connector.read()` search/fetch worth its own versioned route, or a
-  generic `POST /v1/query`?
-- Should the response include a rendered preview so the UI can show what
-  Bridge will file before submit?
+| Question                          | Resolution                                                                                                           |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Support window                    | Current + previous major; 6 months after a successor ships                                                           |
+| Read path                         | Separate `POST /v1/reads` for search/fetch; the versioning and decoder rules of D1 apply to it too                   |
+| GitHub labels, attachments branch | Per-project config in Control Plane, not per-report `options`                                                        |
+| Rendered preview from Bridge      | Not in v1                                                                                                            |
+| Max envelope size                 | Still to be measured against the Worker request-body limit; must be a named constant in `bridge-core` before release |
+
+## Still open
+
 - Where do the user's title/description edits diverge from the
   Bridge-rendered block on re-edit (round-tripping the Fairlead section)?
-- End-of-support policy: confirm N/N−1 and 6 months with product.
+- Product confirmation of the N/N−1 and 6-month policy.
 
 ## Proposed task split
 

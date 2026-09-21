@@ -1,6 +1,6 @@
 # 01 — Stabilize the bridge-core contract
 
-**Status:** Done — 2026-09-22, see "Resolution notes" below.
+**Status:** Done — 2026-09-22, see "Resolution notes" below. The field-level `IntegrationCommand` it stabilized is superseded for the extension-facing wire by [07-report-envelope-and-versioning.md](07-report-envelope-and-versioning.md); `Connector`/`IntegrationResult` remain the connector-side contract.
 **Depends on:** none (this is the base of the dependency chain)
 **Related:** [00-bootstrap.md](00-bootstrap.md), [chrome-extension plan — "Protocol v1 scope"](../../../chrome-extension/docs/plans/integration-connector-gateway.md)
 
