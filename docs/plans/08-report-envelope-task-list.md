@@ -47,17 +47,17 @@ design was dropped (07, "History"). What survives and what does not:
   - Keep the text-length limits.
 - [x] **B12 — `POST /v1/attachments`.** Depends on: B9, control-plane C3.
   - `multipart/form-data`: `meta` JSON part + `file` part, one file per
-    request; validate `meta` (version, project, tracker instance, issue id,
-    filename, content type).
+    request; routing headers carry project and integration instance; validate
+    `meta` (version, issue id, filename, content type).
   - Idempotent replace by `(issue, filename)`.
   - Per-file limit `MAX_ATTACHMENT_BYTES`; structured
     `413 attachment_too_large` for sizes below the platform cap.
   - Stream to the provider where the Worker allows; connectors take bytes
     instead of report-derived files. GitHub: commit to the configured branch
     (config from control-plane C4); Azure DevOps attachments API; Jira native.
-  - Authenticate the identity token before reading the body. Require the
-    bounded `meta` part first, resolve the credential/config from it, then
-    stream the `file` part with an incremental size check; do not use
+  - Resolve the credential/config from routing headers before reading the
+    body. Require the bounded `meta` part first, then stream the `file` part
+    with an incremental size check; do not use
     `request.formData()`, which buffers the complete multipart body.
   - Replacement is upload-new-first, delete-old-second. A failed upload keeps
     the old file. A failed cleanup after upload returns success plus a
@@ -83,22 +83,17 @@ design was dropped (07, "History"). What survives and what does not:
 
 ## External dependencies (other repos)
 
-All three below are delivered in control-plane `e5ea258` (`CpRpc.authenticateBridgeIdentity`,
-`caller_id` and `connector.settings.attachments_branch` in `resolveBridgeCredential`);
-the shapes match what `bridge-worker` calls.
+The Control Plane supplies `connector.settings.attachments_branch` in
+`resolveBridgeCredential`; the shape matches what `bridge-worker` calls.
 
-- **control-plane C3** — `resolveBridgeCredential` returns the caller
-  identity (user id).
 - **control-plane C4** — per-project GitHub labels and attachments branch.
   Bridge expects the resolved connector config to expose it as
   `connector.settings.attachments_branch`.
   See the control-plane list in
   [chrome-extension tasks](../../../chrome-extension/docs/plans/bridge-report-envelope-tasks.md).
-- **control-plane attachment pre-auth** — B12's authenticate-before-body rule
-  requires a token-only `authenticateBridgeIdentity` RPC before the bounded
-  `meta` part is read. `resolveBridgeCredential` cannot serve this purpose
-  because its routing keys are inside `meta`; its returned `caller_id` is
-  cross-checked after resolution.
+- **Attachment routing** — `/v1/attachments` sends `project_id` and
+  `integration_instance_id` as routing headers, so `resolveBridgeCredential`
+  runs before the multipart body is read.
 
 ## Order
 

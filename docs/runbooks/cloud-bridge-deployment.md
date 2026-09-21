@@ -21,6 +21,9 @@ Cloud-mode command handling uses the Control Plane Service Binding. It does not 
 The public API accepts only `POST /v1/commands`, `POST /v1/reads` and
 `POST /v1/attachments` with a Bearer identity token. The `protocolVersion` in the
 body (or in the attachment `meta` part) must be `1`.
+Attachment requests also require `X-Fairlead-Project-Id` and
+`X-Fairlead-Integration-Instance-Id`; Bridge resolves these before reading the
+multipart body.
 
 Request limits, all enforced while the body is read incrementally:
 

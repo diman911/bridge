@@ -76,8 +76,8 @@ Bridge never receives a `Report`. It receives text and files.
 | `description`                                                              | ✔              | optional       | Markdown, user-authored; provider conversion is Bridge's job |
 | **`POST /v1/attachments`** (`multipart/form-data`) — one file per request: |
 
-- Part `meta` (JSON): `protocolVersion`, `project_id`, `integration_instance_id`,
-  `issueId`, `filename`, `contentType`.
+- Headers: `X-Fairlead-Project-Id`, `X-Fairlead-Integration-Instance-Id`.
+- Part `meta` (JSON): `protocolVersion`, `issueId`, `filename`, `contentType`.
 - Part `file`: the bytes.
 - Idempotent by `(issue, filename)`: uploading the same filename to the same
   issue replaces the earlier file. This also covers re-submits after an

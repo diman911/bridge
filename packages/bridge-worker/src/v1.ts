@@ -4,6 +4,8 @@ import {
   SUPPORTED_PROTOCOL_VERSIONS,
   MAX_JSON_REQUEST_BYTES,
   MAX_ATTACHMENT_BYTES,
+  ATTACHMENT_INTEGRATION_INSTANCE_ID_HEADER,
+  ATTACHMENT_PROJECT_ID_HEADER,
   PROTOCOL_VERSION,
   decodeEnvelope,
   supportsCommand,
@@ -46,25 +48,24 @@ function resolved(value: unknown): value is ResolvedBridgeCredential {
   if (typeof value !== 'object' || value === null) return false;
   const candidate = value as Partial<ResolvedBridgeCredential>;
   return (
-    typeof candidate.caller_id === 'string' &&
     !!candidate.credential &&
     typeof candidate.credential.token === 'string' &&
     !!candidate.connector &&
     typeof candidate.connector.catalog_type === 'string'
   );
 }
-async function authenticateIdentity(
-  cp: ControlPlaneRpc,
-  bearer: string,
-): Promise<{ callerId: string } | Response> {
-  try {
-    const value = await cp.authenticateBridgeIdentity(bearer);
-    return 'caller_id' in value && typeof value.caller_id === 'string'
-      ? { callerId: value.caller_id }
-      : error('invalid_token', 'identity token is invalid or expired', 401);
-  } catch {
-    return error('control_plane_unavailable', 'identity authentication failed', 503);
-  }
+function attachmentRouting(request: Request): { projectId: string; integrationInstanceId: string } | Response {
+  const projectId = request.headers.get(ATTACHMENT_PROJECT_ID_HEADER)?.trim();
+  const integrationInstanceId = request.headers
+    .get(ATTACHMENT_INTEGRATION_INSTANCE_ID_HEADER)
+    ?.trim();
+  if (!projectId || !integrationInstanceId)
+    return error(
+      'invalid_attachment_routing',
+      `${ATTACHMENT_PROJECT_ID_HEADER} and ${ATTACHMENT_INTEGRATION_INSTANCE_ID_HEADER} are required`,
+      400,
+    );
+  return { projectId, integrationInstanceId };
 }
 function readEnvelope(value: unknown): value is ReadEnvelope {
   if (typeof value !== 'object' || value === null) return false;
@@ -286,24 +287,18 @@ export function createEnvelopeBridgeWorker(
       const bearer = token(request);
       if (!bearer) return error('missing_token', 'Bearer token is required', 401);
       if (path === '/v1/attachments') {
-        const identity = await authenticateIdentity(env.CONTROL_PLANE, bearer);
-        if (isResponse(identity)) return identity;
+        const routing = attachmentRouting(request);
+        if (isResponse(routing)) return routing;
         try {
-          const multipart = new AttachmentMultipartReader(request);
-          const meta = await multipart.readMeta();
           const credential = await resolve(
             env.CONTROL_PLANE,
             bearer,
-            meta.projectId,
-            meta.integrationInstanceId,
+            routing.projectId,
+            routing.integrationInstanceId,
           );
           if (isResponse(credential)) return credential;
-          if (credential.caller_id !== identity.callerId)
-            return error(
-              'invalid_token',
-              'resolved caller does not match authenticated caller',
-              401,
-            );
+          const multipart = new AttachmentMultipartReader(request);
+          const meta = await multipart.readMeta();
           return await executeWithinTimeout(
             requestTimeoutSeconds(credential),
             async (signal): Promise<Response> => {

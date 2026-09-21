@@ -25,7 +25,12 @@ export type {
   CommandOperation,
 } from './capabilities.js';
 export { COMMAND_OPERATION, supportsCommand, supportsRead } from './capabilities.js';
-export { MAX_ATTACHMENT_BYTES, type AttachmentMetaV1 } from './attachment-v1.js';
+export {
+  MAX_ATTACHMENT_BYTES,
+  ATTACHMENT_PROJECT_ID_HEADER,
+  ATTACHMENT_INTEGRATION_INSTANCE_ID_HEADER,
+  type AttachmentMetaV1,
+} from './attachment-v1.js';
 export type {
   AttachmentMeta,
   AttachmentMetaDecodeResult,

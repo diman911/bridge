@@ -3,21 +3,17 @@ import { decodeAttachmentMetaV1 } from './attachment.js';
 
 const meta = {
   protocolVersion: 1,
-  project_id: 'project-1',
-  integration_instance_id: 'tracker-1',
   issueId: 'APP-42',
   filename: 'capture.har',
   contentType: 'application/x-http-archive',
 };
 
 describe('attachment meta v1', () => {
-  it('maps wire routing fields to the internal model', () => {
+  it('maps file metadata to the internal model', () => {
     expect(decodeAttachmentMetaV1(meta)).toEqual({
       ok: true,
       value: {
         protocolVersion: 1,
-        projectId: 'project-1',
-        integrationInstanceId: 'tracker-1',
         issueId: 'APP-42',
         filename: 'capture.har',
         contentType: 'application/x-http-archive',

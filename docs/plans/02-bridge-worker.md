@@ -42,9 +42,9 @@ none` command (source plan, "Generic integration contract") touches no
   "Execution model: synchronous") — read from Control Plane routing/config
   data, not hardcoded. One deadline covers the whole request; there is no
   separate attachment deadline because attachments are their own request.
-- `/v1/attachments` authenticates the token with a token-only
-  `authenticateBridgeIdentity` call before reading the body, then resolves the
-  credential from the bounded `meta` part (see 08, B12).
+- `/v1/attachments` reads `project_id` and `integration_instance_id` from
+  routing headers, resolves the credential before reading the multipart body,
+  then reads its bounded `meta` part (see 08, B12).
 - Dispatch to the resolved connector (`connector-jira`, `connector-github`,
   `connector-azure-devops`) via the `Connector` interface from
   `bridge-core`. `bridge-worker` itself contains no provider-specific logic.

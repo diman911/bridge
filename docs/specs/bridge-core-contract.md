@@ -76,12 +76,12 @@ configured project.
 
 ### Attachments
 
-Attachments never travel with a command. `POST /v1/attachments` takes a bounded
-`meta` part (`MAX_ATTACHMENT_META_BYTES`, 16 KiB: `protocolVersion`, `project_id`,
-`integration_instance_id`, `issueId`, `filename`, `contentType`)
-followed by one `file` part. The Worker authenticates the token before reading
-the body, resolves the credential from `meta`, cross-checks the returned
-`caller_id`, then streams the file through an incremental size check;
+Attachments never travel with a command. `POST /v1/attachments` requires
+`X-Fairlead-Project-Id` and `X-Fairlead-Integration-Instance-Id` routing headers,
+and takes a bounded `meta` part (`MAX_ATTACHMENT_META_BYTES`, 16 KiB:
+`protocolVersion`, `issueId`, `filename`, `contentType`) followed by one `file` part.
+The Worker resolves the credential from the headers before reading the multipart
+body, then streams the file through an incremental size check;
 `request.formData()` is never used.
 
 The multipart layout is strict, so a client cannot use `FormData` (a string part has no

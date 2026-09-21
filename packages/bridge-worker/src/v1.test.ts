@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 import {
   MAX_JSON_REQUEST_BYTES,
   MAX_ATTACHMENT_BYTES,
+  ATTACHMENT_INTEGRATION_INSTANCE_ID_HEADER,
+  ATTACHMENT_PROJECT_ID_HEADER,
   PROTOCOL_VERSION,
   type Connector,
   type ConnectorCommand,
@@ -27,9 +29,7 @@ const connector: Connector = {
 const worker = createEnvelopeBridgeWorker({ connectors: new Map([['fixture', () => connector]]) });
 const env = {
   CONTROL_PLANE: {
-    authenticateBridgeIdentity: async () => ({ caller_id: 'user-123' }),
     resolveBridgeCredential: async () => ({
-      caller_id: 'user-123',
       credential: { token: 'provider-token', metadata: null, auth_type: 'oauth' as const },
       connector: {
         catalog_type: 'fixture',
@@ -59,11 +59,13 @@ function multipart(meta: Record<string, unknown>, file: Uint8Array, boundary = '
 
 const attachmentMeta = {
   protocolVersion: 1,
-  project_id: 'project-123',
-  integration_instance_id: 'tracker-456',
   issueId: 'APP-42',
   filename: 'capture.har',
   contentType: 'application/x-http-archive',
+};
+const attachmentRoutingHeaders = {
+  [ATTACHMENT_PROJECT_ID_HEADER]: 'project-123',
+  [ATTACHMENT_INTEGRATION_INSTANCE_ID_HEADER]: 'tracker-456',
 };
 
 describe('v1 frozen contract fixtures', () => {
@@ -296,6 +298,7 @@ describe('unsupported protocol version', () => {
       new TextEncoder().encode('x'),
     );
     const response = await post('/v1/attachments', requestBody.body, {
+      ...attachmentRoutingHeaders,
       'content-type': requestBody.contentType,
     });
     expect(response.status).toBe(400);
@@ -306,20 +309,37 @@ describe('unsupported protocol version', () => {
 });
 
 describe('POST /v1/attachments', () => {
-  it('authenticates before reading any multipart bytes', async () => {
+  it('requires routing headers before reading multipart bytes', async () => {
+    const response = await worker.fetch(
+      new Request('https://bridge.example.test/v1/attachments', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer fairlead-token',
+          'content-type': 'not-multipart',
+        },
+        body: 'would fail multipart parsing',
+      }),
+      env,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: { code: 'invalid_attachment_routing' } });
+  });
+
+  it('resolves credentials before reading any multipart bytes', async () => {
     const response = await worker.fetch(
       new Request('https://bridge.example.test/v1/attachments', {
         method: 'POST',
         headers: {
           authorization: 'Bearer invalid',
+          ...attachmentRoutingHeaders,
           'content-type': 'not-multipart',
         },
         body: 'would fail multipart parsing',
       }),
       {
         CONTROL_PLANE: {
-          authenticateBridgeIdentity: async () => ({ error: 'invalid_token' }),
-          resolveBridgeCredential: env.CONTROL_PLANE.resolveBridgeCredential,
+          resolveBridgeCredential: async () => ({ error: 'invalid_token' }),
         },
       },
       {} as ExecutionContext,
@@ -327,7 +347,7 @@ describe('POST /v1/attachments', () => {
     expect(response.status).toBe(401);
   });
 
-  it('resolves credentials after meta and streams one file to the connector', async () => {
+  it('resolves credentials before meta and streams one file to the connector', async () => {
     const events: string[] = [];
     let received = '';
     const attaching: Connector = {
@@ -354,16 +374,13 @@ describe('POST /v1/attachments', () => {
         method: 'POST',
         headers: {
           authorization: 'Bearer fairlead-token',
+          ...attachmentRoutingHeaders,
           'content-type': requestBody.contentType,
         },
         body: requestBody.body,
       }),
       {
         CONTROL_PLANE: {
-          authenticateBridgeIdentity: async () => {
-            events.push('authenticate');
-            return { caller_id: 'user-123' };
-          },
           resolveBridgeCredential: async (...args) => {
             events.push('resolve');
             return env.CONTROL_PLANE.resolveBridgeCredential(...args);
@@ -377,7 +394,7 @@ describe('POST /v1/attachments', () => {
       filename: attachmentMeta.filename,
       ok: true,
     });
-    expect(events).toEqual(['authenticate', 'resolve', 'attach']);
+    expect(events).toEqual(['resolve', 'attach']);
     expect(received).toBe('file bytes');
   });
 
@@ -389,6 +406,7 @@ describe('POST /v1/attachments', () => {
         method: 'POST',
         headers: {
           authorization: 'Bearer fairlead-token',
+          ...attachmentRoutingHeaders,
           'content-type': `multipart/form-data; boundary=${boundary}`,
         },
         body,
@@ -428,6 +446,7 @@ describe('POST /v1/attachments', () => {
         method: 'POST',
         headers: {
           authorization: 'Bearer fairlead-token',
+          ...attachmentRoutingHeaders,
           'content-type': requestBody.contentType,
         },
         body: requestBody.body,

@@ -5,8 +5,6 @@ import { createEnvelopeBridgeWorker } from './v1.js';
 import type { Connector, DeprecationNotice } from '@fairlead/bridge-core';
 
 export interface ResolvedBridgeCredential {
-  /** Verified identity supplied by control-plane C3; never caller input. */
-  caller_id: string;
   credential: {
     token: string;
     metadata: Record<string, unknown> | null;
@@ -26,7 +24,6 @@ export interface ResolvedBridgeCredential {
   request_timeout_seconds?: number;
 }
 export interface ControlPlaneRpc {
-  authenticateBridgeIdentity(token: string): Promise<{ caller_id: string } | { error: string }>;
   resolveBridgeCredential(
     token: string,
     projectId: string,
