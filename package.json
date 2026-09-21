@@ -13,6 +13,7 @@
   "scripts": {
     "build": "npm run build --workspace=@fairlead/bridge-core && npm run build --workspace=@fairlead/connector-jira --workspace=@fairlead/connector-github --workspace=@fairlead/connector-azure-devops && npm run build --workspace=@fairlead/bridge-worker",
     "test": "vitest run",
+    "test:e2e:github": "node --env-file-if-exists=.env.e2e ./node_modules/vitest/vitest.mjs run --config e2e/vitest.config.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint .",

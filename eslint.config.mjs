@@ -7,6 +7,7 @@ export default [
     ignores: [
       '**/dist/**',
       '**/coverage/**',
+      '**/.wrangler/**',
       'node_modules/**',
       // The flat config itself: type-aware rules need a TS project, and this
       // file isn't in one (and defines it — chicken-and-egg). Prettier still

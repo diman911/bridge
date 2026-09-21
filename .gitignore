@@ -15,3 +15,6 @@ dist/
 
 # Coverage output
 coverage/
+
+# Local live GitHub E2E credentials
+.env.e2e

@@ -37,13 +37,15 @@ export class GithubConnector implements Connector {
   private f;
   private base;
   constructor(private c: GithubConnectorConfig) {
-    this.f = c.fetch ?? fetch;
+    // Workers' fetch requires the global object as its `this` value.
+    this.f = c.fetch ?? globalThis.fetch.bind(globalThis);
     this.base = (c.baseUrl ?? 'https://api.github.com').replace(/\/+$/, '');
   }
   private h(json = false) {
     return {
       Authorization: `Bearer ${this.c.token}`,
       Accept: 'application/vnd.github+json',
+      'User-Agent': 'fairlead-bridge',
       ...(json ? { 'Content-Type': 'application/json' } : {}),
     };
   }

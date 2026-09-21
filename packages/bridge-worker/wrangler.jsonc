@@ -6,7 +6,7 @@
   "services": [
     {
       "binding": "CONTROL_PLANE",
-      "service": "fairlead-control-plane",
+      "service": "control-plane",
       "entrypoint": "CpRpc",
     },
   ],
