@@ -222,7 +222,17 @@ function connectorFor(
     connector: credential.connector,
     signal,
   };
-  return factory(context);
+  try {
+    return factory(context);
+  } catch {
+    // The factory rejects a resolved config that lacks a trusted field, e.g. no
+    // destination (project / repository) chosen for this Fairlead project yet.
+    return error(
+      'connector_not_configured',
+      'the tracker is not fully configured for this project',
+      422,
+    );
+  }
 }
 
 function record(value: unknown): value is Record<string, unknown> {

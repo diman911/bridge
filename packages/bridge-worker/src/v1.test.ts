@@ -265,6 +265,33 @@ describe('v1 frozen contract fixtures', () => {
   });
 });
 
+describe('connector configuration', () => {
+  it('answers 422 connector_not_configured when the connector factory rejects the resolved config', async () => {
+    const throwing = createEnvelopeBridgeWorker({
+      connectors: new Map([
+        [
+          'fixture',
+          () => {
+            throw new Error('missing trusted connector container_key');
+          },
+        ],
+      ]),
+    });
+    const body = await readFile(join(contract, 'request-create-issue.json'), 'utf8');
+    const response = await throwing.fetch(
+      new Request('https://bridge.example.test/v1/commands', {
+        method: 'POST',
+        headers: { authorization: 'Bearer fairlead-token' },
+        body,
+      }),
+      env,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ error: { code: 'connector_not_configured' } });
+  });
+});
+
 describe('unsupported protocol version', () => {
   const routing = { project_id: 'project-123', tracker_instance_id: 'tracker-456' };
   const post = (path: string, body: BodyInit, headers: Record<string, string> = {}) =>
