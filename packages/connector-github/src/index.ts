@@ -150,8 +150,15 @@ export class GithubConnector implements Connector {
             error: { code: 'attachment_branch_failed', message: String(made.status) },
           };
       }
-      const name = new URL(e.sessionUrl).pathname.split('/').pop() || 'evidence';
-      const path = `attachments/${id}/${name}`;
+      const lastSegment = new URL(e.sessionUrl).pathname.split('/').pop() || 'evidence';
+      // pathname is already percent-encoded; decode so the path is encoded exactly once.
+      let name = lastSegment;
+      try {
+        name = decodeURIComponent(lastSegment);
+      } catch {
+        /* keep the raw segment when it is not valid percent-encoding */
+      }
+      const path = `attachments/${encodeURIComponent(id)}/${encodeURIComponent(name)}`;
       const existing = await this.f(this.path(`/contents/${path}?ref=${branch}`), {
         headers: this.h(),
         signal,
@@ -183,11 +190,21 @@ export class GithubConnector implements Connector {
           error: { code: 'attachment_upload_failed', message: String(put.status) },
         };
       const uploaded = (await put.json()) as { content: { html_url: string } };
-      const raw = uploaded.content.html_url.replace('/blob/', '/raw/');
+      // Blob (not /raw/) link: it opens for anyone with repo access, including private repos.
+      const link = uploaded.content.html_url;
+      const commentBody = `### Attachments\n- [${name}](${link})`;
+      const comments = await this.f(this.path(`/issues/${id}/comments?per_page=100`), {
+        headers: this.h(),
+        signal,
+      });
+      if (comments.ok) {
+        const list = (await comments.json()) as { body?: string | null }[];
+        if (list.some((x) => x.body === commentBody)) return { reference: e, ok: true };
+      }
       const comment = await this.f(this.path(`/issues/${id}/comments`), {
         method: 'POST',
         headers: this.h(true),
-        body: JSON.stringify({ body: `### Attachments\n- [${name}](${raw})` }),
+        body: JSON.stringify({ body: commentBody }),
         signal,
       });
       return comment.ok

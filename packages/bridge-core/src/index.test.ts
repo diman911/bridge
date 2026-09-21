@@ -125,4 +125,36 @@ describe('bridge-core contract', () => {
 
     expect(result).toEqual({ ok: true });
   });
+  describe('title/description validation', () => {
+    const base = {
+      protocolVersion: PROTOCOL_VERSION,
+      target: { kind: 'none' as const },
+      outcome: 'observation' as const,
+      actions: [{ type: 'create_issue' as const }],
+      idempotencyKey: 'test-fields',
+      callerId: 'test-user',
+      connectorId: 'test-connector',
+    };
+
+    it('rejects a non-string description', () => {
+      const result = validateIntegrationCommand({ ...base, description: {} as unknown as string });
+      expect(result).toEqual({
+        error: { code: 'invalid_description', message: expect.any(String) },
+      });
+    });
+
+    it('rejects a non-string title', () => {
+      const result = validateIntegrationCommand({ ...base, title: 42 as unknown as string });
+      expect(result).toEqual({ error: { code: 'invalid_title', message: expect.any(String) } });
+    });
+
+    it('rejects a field over 32768 characters and accepts exactly 32768', () => {
+      const tooLong = validateIntegrationCommand({ ...base, description: 'x'.repeat(32_769) });
+      expect(tooLong).toEqual({
+        error: { code: 'invalid_description', message: expect.any(String) },
+      });
+      const atLimit = validateIntegrationCommand({ ...base, title: 'x'.repeat(32_768) });
+      expect(atLimit).toEqual({ ok: true });
+    });
+  });
 });
