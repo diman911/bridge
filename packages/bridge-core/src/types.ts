@@ -58,6 +58,10 @@ export interface IntegrationCommand {
   idempotencyKey: string;
   callerId: string;
   connectorId: string;
+  /** Standard v1 issue fields; issue connectors require both for writes. */
+  title?: string;
+  /** Standard v1 issue fields; issue connectors require both for writes. */
+  description?: string;
   projectContext?: Record<string, string>;
 }
 

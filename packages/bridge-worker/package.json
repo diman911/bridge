@@ -12,6 +12,9 @@
     "dev": "wrangler dev --local"
   },
   "dependencies": {
-    "@fairlead/bridge-core": "0.1.0"
+    "@fairlead/bridge-core": "0.1.0",
+    "@fairlead/connector-jira": "0.1.0",
+    "@fairlead/connector-github": "0.1.0",
+    "@fairlead/connector-azure-devops": "0.1.0"
   }
 }

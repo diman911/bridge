@@ -12,5 +12,5 @@ export type {
   ReadResult,
 } from './types.js';
 export { PROTOCOL_VERSION, isCompatibleProtocolVersion } from './types.js';
-export type { ConnectorCapabilities, Connector } from './connector.js';
+export type { ConnectorCapabilities, Connector, ConnectorExecutionOptions } from './connector.js';
 export { validateIntegrationCommand } from './validation.js';

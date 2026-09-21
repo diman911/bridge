@@ -11,7 +11,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build --workspace=@fairlead/bridge-core && npm run build --workspace=@fairlead/connector-jira --workspace=@fairlead/connector-github --workspace=@fairlead/connector-azure-devops && npm run build --workspace=@fairlead/bridge-worker",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

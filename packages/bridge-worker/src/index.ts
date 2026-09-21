@@ -1,3 +1,6 @@
+import { JiraConnector } from '@fairlead/connector-jira';
+import { GithubConnector } from '@fairlead/connector-github';
+import { AzureDevOpsConnector } from '@fairlead/connector-azure-devops';
 import {
   PROTOCOL_VERSION,
   validateIntegrationCommand,
@@ -10,8 +13,21 @@ const RETRYABLE_HTTP_STATUSES = new Set([429, 502, 503, 504]);
 
 export const DEFAULT_REQUEST_TIMEOUT_SECONDS = 15;
 export interface ResolvedBridgeCredential {
-  credential: { token: string; metadata: Record<string, unknown> | null };
-  connector: { catalog_type: string; host: string | null; port: number | null };
+  credential: {
+    token: string;
+    metadata: Record<string, unknown> | null;
+    auth_type: 'oauth' | 'api_token';
+  };
+  connector: {
+    catalog_type: string;
+    host: string | null;
+    port: number | null;
+    account_id: string | null;
+    account_url: string | null;
+    container_id: string | null;
+    container_key: string | null;
+    container_name: string | null;
+  };
   request_timeout_seconds?: number;
 }
 export interface ControlPlaneRpc {
@@ -64,7 +80,9 @@ function isResolvedBridgeCredential(value: unknown): value is ResolvedBridgeCred
     typeof result.credential.token === 'string' &&
     typeof result.connector === 'object' &&
     result.connector !== null &&
-    typeof result.connector.catalog_type === 'string'
+    typeof result.connector.catalog_type === 'string' &&
+    'account_id' in result.connector &&
+    'container_key' in result.connector
   );
 }
 function isControlPlaneError(value: unknown): value is { error: string } {
@@ -283,4 +301,45 @@ export function createBridgeWorker(
     },
   };
 }
-export default createBridgeWorker({ connectors: new Map() });
+function required(value: string | null, field: string): string {
+  if (!value) throw new Error(`missing trusted connector ${field}`);
+  return value;
+}
+
+const productionConnectors = new Map<string, ConnectorFactory>([
+  [
+    'jira_cloud',
+    (context) =>
+      new JiraConnector({
+        baseUrl: required(context.connector.account_url, 'account_url'),
+        projectKey: required(context.connector.container_key, 'container_key'),
+        token: context.credential.token,
+        authType: context.credential.auth_type,
+        email:
+          typeof context.credential.metadata?.email === 'string'
+            ? context.credential.metadata.email
+            : undefined,
+      }),
+  ],
+  [
+    'github',
+    (context) =>
+      new GithubConnector({
+        owner: required(context.connector.account_id, 'account_id'),
+        repo: required(context.connector.container_key, 'container_key'),
+        token: context.credential.token,
+      }),
+  ],
+  [
+    'azure_devops',
+    (context) =>
+      new AzureDevOpsConnector({
+        organization: required(context.connector.account_id, 'account_id'),
+        project: required(context.connector.container_key, 'container_key'),
+        token: context.credential.token,
+        authType: context.credential.auth_type,
+      }),
+  ],
+]);
+
+export default createBridgeWorker({ connectors: productionConnectors });
