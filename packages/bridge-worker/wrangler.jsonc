@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "fairlead-bridge-cloud",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-21",
+  "services": [
+    {
+      "binding": "CONTROL_PLANE",
+      "service": "fairlead-control-plane",
+      "entrypoint": "CpRpc",
+    },
+  ],
+}
