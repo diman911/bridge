@@ -1,23 +1,15 @@
-// Provider formatters for the Fairlead technical block and the update-flow merge.
-// Connectors call these so the marker logic lives in one place. Merge decision
-// (plan 07, B6): content outside the Fairlead block is preserved as the tracker
-// holds it; the envelope `description` replaces that prose only when its text
-// differs from what is already there. The block itself is always replaced, never
-// appended a second time.
-
-export const TECHNICAL_HEADING = 'Fairlead technical context';
-export const BLOCK_BEGIN = '<!-- fairlead:begin -->';
-export const BLOCK_END = '<!-- fairlead:end -->';
-
-/** Report-derived facts rendered into the block; independent of any provider format. */
-export interface TechnicalContext {
-  url: string;
-  startedAt: string;
-  stoppedAt: string;
-  userActions: number;
-  networkRequests: number;
-  errors: number;
+export interface DescriptionUpdate {
+  description?: string;
+  technicalSection?: string;
+  onConflict?: 'append' | 'replace';
 }
+
+export type DescriptionMergeResult<T> =
+  | { ok: true; value: T }
+  | {
+      ok: false;
+      error: { code: 'description_conflict'; message: string };
+    };
 
 export interface AdfNode {
   type: string;
@@ -31,19 +23,84 @@ export interface AdfDocument {
   content: AdfNode[];
 }
 
-function contextLines(context: TechnicalContext | string): string[] {
-  if (typeof context === 'string') return context.split('\n');
-  return [
-    `URL: ${context.url}`,
-    `Recorded: ${context.startedAt} – ${context.stoppedAt}`,
-    `User actions: ${context.userActions}`,
-    `Network requests: ${context.networkRequests}`,
-    `Errors: ${context.errors}`,
-  ];
+type LocatedBlock =
+  { state: 'absent' } | { state: 'intact'; start: number; end: number } | { state: 'malformed' };
+
+const conflict = <T>(): DescriptionMergeResult<T> => ({
+  ok: false,
+  error: {
+    code: 'description_conflict',
+    message: 'the existing Fairlead block is malformed; retry with onConflict',
+  },
+});
+
+function joinSections(...sections: (string | undefined)[]): string {
+  return sections.filter((section) => section !== undefined && section !== '').join('\n\n');
 }
-function normalize(text: string): string {
-  return text.replace(/\s+/g, ' ').trim();
+
+function markdownBlock(value: string): string {
+  return `\`\`\`fairlead\n${value}\n\`\`\``;
 }
+
+function locateMarkdownBlock(existing: string): LocatedBlock {
+  const opener = /^```fairlead[\t ]*\r?$/gm;
+  const openings = [...existing.matchAll(opener)];
+  if (openings.length === 0) return { state: 'absent' };
+  if (openings.length !== 1) return { state: 'malformed' };
+  const match = openings[0];
+  const start = match.index;
+  const contentStart = start + match[0].length;
+  const closing = /^```[\t ]*\r?$/gm;
+  closing.lastIndex = contentStart;
+  const end = closing.exec(existing);
+  if (!end) return { state: 'malformed' };
+  return { state: 'intact', start, end: end.index + end[0].length };
+}
+
+function mergeTextBlock(
+  existing: string,
+  update: DescriptionUpdate,
+  locate: (value: string) => LocatedBlock,
+  renderBlock: (value: string) => string,
+  renderDescription: (value: string) => string,
+): DescriptionMergeResult<string> {
+  const block = locate(existing);
+  const renderedDescription =
+    update.description === undefined ? undefined : renderDescription(update.description);
+  const renderedBlock =
+    update.technicalSection === undefined || update.technicalSection === ''
+      ? undefined
+      : renderBlock(update.technicalSection);
+
+  if (update.onConflict === 'replace')
+    return { ok: true, value: joinSections(renderedDescription, renderedBlock) };
+  if (block.state === 'malformed') {
+    if (update.onConflict !== 'append') return conflict();
+    return { ok: true, value: joinSections(existing.trim(), renderedBlock) };
+  }
+
+  const prose =
+    block.state === 'intact'
+      ? `${existing.slice(0, block.start)}${existing.slice(block.end)}`.trim()
+      : existing.trim();
+  const nextProse = renderedDescription ?? prose;
+  const nextBlock =
+    update.technicalSection === undefined
+      ? block.state === 'intact'
+        ? existing.slice(block.start, block.end)
+        : undefined
+      : renderedBlock;
+  return { ok: true, value: joinSections(nextProse, nextBlock) };
+}
+
+/** GitHub representation: a fenced Markdown block with info string `fairlead`. */
+export function mergeMarkdown(
+  existing: string,
+  update: DescriptionUpdate,
+): DescriptionMergeResult<string> {
+  return mergeTextBlock(existing, update, locateMarkdownBlock, markdownBlock, (value) => value);
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
@@ -52,82 +109,45 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
-function htmlText(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&');
+function paragraphs(text: string): string {
+  return text
+    .split(/\n\n+/)
+    .filter((paragraph) => paragraph.trim() !== '')
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, '<br>')}</p>`)
+    .join('');
 }
-function paragraphs(text: string): string[] {
-  return text.split(/\n\n+/).filter((paragraph) => paragraph.trim() !== '');
-}
-
-/** Removes a previously written Fairlead block, returning the prose around it. */
-function withoutBlock(existing: string): string {
-  const begin = existing.indexOf(BLOCK_BEGIN);
-  const end = begin < 0 ? -1 : existing.indexOf(BLOCK_END, begin);
-  if (begin < 0 || end < 0) return existing.trim();
-  return (existing.slice(0, begin) + existing.slice(end + BLOCK_END.length)).trim();
-}
-function mergeMarked(
-  existing: string,
-  description: string,
-  block: string,
-  format: { prose: (text: string) => string; plain: (text: string) => string },
-): string {
-  const current = withoutBlock(existing);
-  const keep =
-    description.trim() === '' || normalize(format.plain(current)) === normalize(description);
-  return [keep ? current : format.prose(description), block].filter(Boolean).join('\n\n');
+const HTML_OPEN = '<pre><code class="language-fairlead">';
+const HTML_CLOSE = '</code></pre>';
+function locateHtmlBlock(existing: string): LocatedBlock {
+  const starts: number[] = [];
+  for (
+    let index = existing.indexOf(HTML_OPEN);
+    index >= 0;
+    index = existing.indexOf(HTML_OPEN, index + 1)
+  )
+    starts.push(index);
+  if (starts.length === 0) return { state: 'absent' };
+  if (starts.length !== 1) return { state: 'malformed' };
+  const end = existing.indexOf(HTML_CLOSE, starts[0] + HTML_OPEN.length);
+  return end < 0
+    ? { state: 'malformed' }
+    : { state: 'intact', start: starts[0], end: end + HTML_CLOSE.length };
 }
 
-/** GitHub: `existing` is the issue body; pass '' when creating. */
-export function mergeMarkdown(
-  existing: string,
-  description: string,
-  context: TechnicalContext | string,
-): string {
-  const block = [
-    BLOCK_BEGIN,
-    '---',
-    `## ${TECHNICAL_HEADING}`,
-    contextLines(context)
-      .map((line) => `- ${line}`)
-      .join('\n'),
-    BLOCK_END,
-  ].join('\n\n');
-  return mergeMarked(existing, description, block, { prose: (text) => text, plain: (t) => t });
-}
-
-/** Azure DevOps: `existing` is the System.Description HTML; pass '' when creating. */
+/** Azure DevOps representation of the same managed Markdown block. */
 export function mergeHtml(
   existing: string,
-  description: string,
-  context: TechnicalContext | string,
-): string {
-  const items = contextLines(context)
-    .map((line) => `<li>${escapeHtml(line)}</li>`)
-    .join('');
-  const block = `${BLOCK_BEGIN}<hr><h2>${TECHNICAL_HEADING}</h2><ul>${items}</ul>${BLOCK_END}`;
-  return mergeMarked(existing, description, block, {
-    prose: (text) =>
-      paragraphs(text)
-        .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, '<br>')}</p>`)
-        .join(''),
-    plain: htmlText,
-  });
+  update: DescriptionUpdate,
+): DescriptionMergeResult<string> {
+  return mergeTextBlock(
+    existing,
+    update,
+    locateHtmlBlock,
+    (value) => `${HTML_OPEN}${escapeHtml(value)}${HTML_CLOSE}`,
+    paragraphs,
+  );
 }
 
-const INLINE_TYPES = new Set(['text', 'hardBreak', 'mention', 'emoji', 'inlineCard', 'status']);
-function adfText(node: AdfNode): string {
-  if (node.type === 'text') return node.text ?? '';
-  if (node.type === 'hardBreak') return ' ';
-  const children = node.content ?? [];
-  return children.map(adfText).join(children.every((c) => INLINE_TYPES.has(c.type)) ? '' : ' ');
-}
 function isAdfDocument(value: unknown): value is AdfDocument {
   return (
     typeof value === 'object' &&
@@ -137,11 +157,9 @@ function isAdfDocument(value: unknown): value is AdfDocument {
   );
 }
 function isFairleadBlock(node: AdfNode): boolean {
-  const first = node.content?.[0];
-  return node.type === 'panel' && first?.type === 'heading' && adfText(first) === TECHNICAL_HEADING;
+  return node.type === 'codeBlock' && node.attrs?.language === 'fairlead';
 }
 const textNode = (text: string): AdfNode => ({ type: 'text', text });
-/** A paragraph's lines joined by hard breaks, so single newlines survive in Jira. */
 function inlineNodes(paragraph: string): AdfNode[] {
   return paragraph
     .split('\n')
@@ -150,41 +168,62 @@ function inlineNodes(paragraph: string): AdfNode[] {
       ...(line ? [textNode(line)] : []),
     ]);
 }
+function adfDescription(value: string): AdfNode[] {
+  return value
+    .split(/\n\n+/)
+    .filter((paragraph) => paragraph.trim() !== '')
+    .map((paragraph) => ({ type: 'paragraph', content: inlineNodes(paragraph) }));
+}
+function adfBlock(value: string): AdfNode {
+  return { type: 'codeBlock', attrs: { language: 'fairlead' }, content: [textNode(value)] };
+}
 
-/**
- * Jira: `existing` is the issue's ADF description (or null/absent when creating
- * or when the issue has none). Nodes outside the Fairlead panel are kept as-is.
- */
+/** Jira representation: one ADF codeBlock whose language is `fairlead`. */
 export function mergeAdf(
   existing: unknown,
-  description: string,
-  context: TechnicalContext | string,
-): AdfDocument {
+  update: DescriptionUpdate,
+): DescriptionMergeResult<AdfDocument> {
   const doc: AdfDocument = isAdfDocument(existing)
     ? existing
     : { version: 1, type: 'doc', content: [] };
-  const prose = doc.content.filter((node) => !isFairleadBlock(node));
-  const keep =
-    description.trim() === '' || normalize(prose.map(adfText).join(' ')) === normalize(description);
-  const block: AdfNode = {
-    type: 'panel',
-    attrs: { panelType: 'info' },
-    content: [
-      { type: 'heading', attrs: { level: 2 }, content: [textNode(TECHNICAL_HEADING)] },
-      {
-        type: 'bulletList',
-        content: contextLines(context).map((line) => ({
-          type: 'listItem',
-          content: [{ type: 'paragraph', content: [textNode(line)] }],
-        })),
+  const indexes = doc.content.flatMap((node, index) => (isFairleadBlock(node) ? [index] : []));
+  const malformed = indexes.length > 1;
+  if (update.onConflict === 'replace') {
+    const content = [
+      ...adfDescription(update.description ?? ''),
+      ...(update.technicalSection ? [adfBlock(update.technicalSection)] : []),
+    ];
+    return { ok: true, value: { version: 1, type: 'doc', content } };
+  }
+  if (malformed) {
+    if (update.onConflict !== 'append') return conflict();
+    return {
+      ok: true,
+      value: {
+        ...doc,
+        content: [
+          ...doc.content,
+          ...(update.technicalSection ? [adfBlock(update.technicalSection)] : []),
+        ],
       },
-    ],
+    };
+  }
+  const existingBlock = indexes.length === 1 ? doc.content[indexes[0]] : undefined;
+  const prose = doc.content.filter((_, index) => index !== indexes[0]);
+  const nextProse = update.description === undefined ? prose : adfDescription(update.description);
+  const nextBlock =
+    update.technicalSection === undefined
+      ? existingBlock
+      : update.technicalSection
+        ? adfBlock(update.technicalSection)
+        : undefined;
+  return {
+    ok: true,
+    value: {
+      ...doc,
+      version: 1,
+      type: 'doc',
+      content: [...nextProse, ...(nextBlock ? [nextBlock] : [])],
+    },
   };
-  const body: AdfNode[] = keep
-    ? prose
-    : paragraphs(description).map((paragraph) => ({
-        type: 'paragraph',
-        content: inlineNodes(paragraph),
-      }));
-  return { ...doc, version: 1, type: 'doc', content: [...body, block] };
 }

@@ -295,7 +295,10 @@ export function createEnvelopeBridgeWorker(
             },
           );
           if (isResponse(result)) return result;
-          return response(notify(routing.version, result), result.ok ? 200 : 422);
+          return response(
+            notify(routing.version, result),
+            result.ok ? 200 : result.error?.code === 'description_conflict' ? 409 : 422,
+          );
         } catch (cause) {
           const timeout = timedOut(cause);
           return response(

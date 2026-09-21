@@ -58,6 +58,8 @@ export class JiraConnector implements Connector {
     const { type } = command;
     let key: string;
     if (type === 'create_issue') {
+      const merged = mergeAdf(null, command);
+      if (!merged.ok) return fail(merged.error.code, merged.error.message);
       const r = await this.f(`${this.base}/rest/api/3/issue`, {
         method: 'POST',
         headers: this.h(true),
@@ -65,7 +67,7 @@ export class JiraConnector implements Connector {
           fields: {
             project: { key: this.c.projectKey },
             summary: command.subject,
-            description: mergeAdf(null, command.description, command.technicalSection ?? ''),
+            description: merged.value,
             issuetype: { name: 'Bug' },
           },
         }),
@@ -87,17 +89,19 @@ export class JiraConnector implements Connector {
       };
       if (existing.fields?.project?.key !== this.c.projectKey)
         return fail('issue_outside_project', 'issue is outside configured Jira project');
+      const changesDescription =
+        command.description !== undefined || command.technicalSection !== undefined;
+      const merged = changesDescription
+        ? mergeAdf(existing.fields?.description, command)
+        : undefined;
+      if (merged && !merged.ok) return fail(merged.error.code, merged.error.message);
       const r = await this.f(url, {
         method: 'PUT',
         headers: this.h(true),
         body: JSON.stringify({
           fields: {
             ...(command.subject === undefined ? {} : { summary: command.subject }),
-            description: mergeAdf(
-              existing.fields?.description,
-              command.description ?? '',
-              command.technicalSection ?? '',
-            ),
+            ...(merged?.ok ? { description: merged.value } : {}),
           },
         }),
         signal: o.signal,

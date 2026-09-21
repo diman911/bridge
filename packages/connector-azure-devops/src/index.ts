@@ -63,8 +63,9 @@ export class AzureDevOpsConnector implements Connector {
     const itemUrl = create
       ? undefined
       : `${this.base}/_apis/wit/workitems/${encodeURIComponent(c.issueId)}?api-version=7.1`;
+    const changesDescription = c.description !== undefined || c.technicalSection !== undefined;
     let existing = '';
-    if (itemUrl) {
+    if (itemUrl && changesDescription) {
       const current = await this.f(`${itemUrl}&fields=System.Description`, {
         headers: { Authorization: this.auth(), Accept: 'application/json' },
         signal: o.signal,
@@ -75,15 +76,13 @@ export class AzureDevOpsConnector implements Connector {
           'System.Description'
         ] ?? '';
     }
+    const merged = changesDescription ? mergeHtml(existing, c) : undefined;
+    if (merged && !merged.ok) return fail(merged.error.code, merged.error.message);
     const op = create ? 'add' : 'replace';
     const patch = [
       ...(create ? [{ op: 'add', path: '/fields/System.WorkItemType', value: 'Bug' }] : []),
       ...(c.subject === undefined ? [] : [{ op, path: '/fields/System.Title', value: c.subject }]),
-      {
-        op,
-        path: '/fields/System.Description',
-        value: mergeHtml(existing, c.description ?? '', c.technicalSection ?? ''),
-      },
+      ...(merged?.ok ? [{ op, path: '/fields/System.Description', value: merged.value }] : []),
     ];
     const r = await this.f(itemUrl ?? `${this.base}/_apis/wit/workitems/$Bug?api-version=7.1`, {
       method: create ? 'POST' : 'PATCH',

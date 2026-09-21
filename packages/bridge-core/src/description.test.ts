@@ -1,71 +1,111 @@
 import { describe, expect, it } from 'vitest';
-import { mergeAdf, mergeHtml, mergeMarkdown, type TechnicalContext } from './description.js';
+import { mergeAdf, mergeHtml, mergeMarkdown, type AdfDocument } from './description.js';
 
-const context: TechnicalContext = {
-  url: 'https://app.example.test/<x>',
-  startedAt: 'a',
-  stoppedAt: 'b',
-  userActions: 1,
-  networkRequests: 2,
-  errors: 3,
-};
-const count = (text: string, part: string) => text.split(part).length - 1;
-
-describe('description merge', () => {
-  it('markdown: replaces the block on re-update and keeps unchanged prose', () => {
-    const created = mergeMarkdown('', 'Summary', context);
-    const updated = mergeMarkdown(`${created}`, 'Summary', { ...context, errors: 9 });
-    expect(count(updated, 'Fairlead technical context')).toBe(1);
-    expect(updated).toContain('Errors: 9');
-    expect(updated.startsWith('Summary')).toBe(true);
+describe('managed Fairlead block', () => {
+  it('replaces, appends, preserves, and removes the Markdown block', () => {
+    const created = mergeMarkdown('User text', { technicalSection: 'old' });
+    expect(created).toEqual({ ok: true, value: 'User text\n\n```fairlead\nold\n```' });
+    if (!created.ok) return;
+    expect(mergeMarkdown(created.value, { technicalSection: 'new' })).toEqual({
+      ok: true,
+      value: 'User text\n\n```fairlead\nnew\n```',
+    });
+    expect(mergeMarkdown(created.value, { description: 'Rewritten' })).toEqual({
+      ok: true,
+      value: 'Rewritten\n\n```fairlead\nold\n```',
+    });
+    expect(mergeMarkdown(created.value, { technicalSection: '' })).toEqual({
+      ok: true,
+      value: 'User text',
+    });
   });
 
-  it('markdown: keeps tracker-side edits when the description is unchanged, replaces otherwise', () => {
-    const existing = `Edited in tracker\n\n${mergeMarkdown('', '', context)}`;
-    expect(mergeMarkdown(existing, '', context)).toContain('Edited in tracker');
-    const replaced = mergeMarkdown(existing, 'New text', context);
-    expect(replaced).toContain('New text');
-    expect(replaced).not.toContain('Edited in tracker');
+  it('detects malformed Markdown and applies both conflict strategies', () => {
+    const malformed = 'User text\n\n```fairlead\nunclosed';
+    expect(mergeMarkdown(malformed, { technicalSection: 'new' })).toMatchObject({
+      ok: false,
+      error: { code: 'description_conflict' },
+    });
+    expect(mergeMarkdown(malformed, { technicalSection: 'new', onConflict: 'append' })).toEqual({
+      ok: true,
+      value: `${malformed}\n\n\`\`\`fairlead\nnew\n\`\`\``,
+    });
+    expect(
+      mergeMarkdown(malformed, {
+        description: 'Clean prose',
+        technicalSection: 'new',
+        onConflict: 'replace',
+      }),
+    ).toEqual({ ok: true, value: 'Clean prose\n\n```fairlead\nnew\n```' });
+    expect(mergeMarkdown(malformed, { description: 'Clean prose', onConflict: 'replace' })).toEqual(
+      { ok: true, value: 'Clean prose' },
+    );
   });
 
-  it('html: escapes report values and round-trips without duplicating the block', () => {
-    const created = mergeHtml('', 'A & B', context);
-    expect(created).toContain('&lt;x&gt;');
-    expect(created).toContain('<p>A &amp; B</p>');
-    const updated = mergeHtml(created, 'A & B', context);
-    expect(count(updated, 'Fairlead technical context')).toBe(1);
-    expect(updated).toBe(created);
+  it('uses an escaped HTML code block for Azure DevOps', () => {
+    const created = mergeHtml('<p>User text</p>', { technicalSection: '<secret>' });
+    expect(created).toEqual({
+      ok: true,
+      value: '<p>User text</p>\n\n<pre><code class="language-fairlead">&lt;secret&gt;</code></pre>',
+    });
+    if (!created.ok) return;
+    expect(mergeHtml(created.value, { technicalSection: '' })).toEqual({
+      ok: true,
+      value: '<p>User text</p>',
+    });
+    expect(
+      mergeHtml('<pre><code class="language-fairlead">broken', { technicalSection: 'new' }),
+    ).toMatchObject({ ok: false, error: { code: 'description_conflict' } });
   });
 
-  it('adf: preserves rich existing nodes and replaces only the Fairlead panel', () => {
-    const rich = {
+  it('preserves Jira ADF nodes while replacing or deleting its codeBlock', () => {
+    const paragraph = { type: 'paragraph', content: [{ type: 'text', text: 'User text' }] };
+    const doc: AdfDocument = {
       version: 1,
       type: 'doc',
       content: [
-        { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Steps' }] },
-        { type: 'codeBlock', content: [{ type: 'text', text: 'npm test' }] },
+        paragraph,
+        {
+          type: 'codeBlock',
+          attrs: { language: 'fairlead' },
+          content: [{ type: 'text', text: 'old' }],
+        },
       ],
     };
-    const first = mergeAdf(rich, '', context);
-    const second = mergeAdf(first, '', { ...context, errors: 9 });
-    expect(second.content).toHaveLength(3);
-    expect(second.content.slice(0, 2)).toEqual(rich.content);
-    expect(JSON.stringify(second)).toContain('Errors: 9');
-    expect(count(JSON.stringify(second), 'Fairlead technical context')).toBe(1);
+    expect(mergeAdf(doc, { technicalSection: 'new' })).toEqual({
+      ok: true,
+      value: {
+        ...doc,
+        content: [
+          paragraph,
+          {
+            type: 'codeBlock',
+            attrs: { language: 'fairlead' },
+            content: [{ type: 'text', text: 'new' }],
+          },
+        ],
+      },
+    });
+    expect(mergeAdf(doc, { technicalSection: '' })).toEqual({
+      ok: true,
+      value: { ...doc, content: [paragraph] },
+    });
   });
 
-  it('adf: keeps single newlines as hard breaks', () => {
-    const doc = mergeAdf(null, 'one\ntwo\n\nthree', context);
-    expect(doc.content[0].content).toEqual([
-      { type: 'text', text: 'one' },
-      { type: 'hardBreak' },
-      { type: 'text', text: 'two' },
-    ]);
-    expect(doc.content[1].content).toEqual([{ type: 'text', text: 'three' }]);
-    expect(mergeAdf(doc, 'one\ntwo\n\nthree', context).content).toHaveLength(3);
-  });
-
-  it('adf: builds a document when the issue has no description', () => {
-    expect(mergeAdf(null, 'Hello', context).content[0]).toMatchObject({ type: 'paragraph' });
+  it('treats multiple Jira Fairlead blocks as malformed', () => {
+    const block = {
+      type: 'codeBlock',
+      attrs: { language: 'fairlead' },
+      content: [{ type: 'text', text: 'old' }],
+    };
+    const doc: AdfDocument = { version: 1, type: 'doc', content: [block, block] };
+    expect(mergeAdf(doc, { technicalSection: 'new' })).toMatchObject({
+      ok: false,
+      error: { code: 'description_conflict' },
+    });
+    expect(mergeAdf(doc, { technicalSection: 'new', onConflict: 'append' })).toMatchObject({
+      ok: true,
+      value: { content: [block, block, expect.objectContaining({ type: 'codeBlock' })] },
+    });
   });
 });

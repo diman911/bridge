@@ -45,7 +45,7 @@ design was dropped (07, "History"). What survives and what does not:
   - Delete report decoding, report → issue mapping, report schema-version
     constants and envelope-size constants; update exports.
   - Keep the text-length limits.
-- [ ] **B11 — Managed block semantics.** Depends on: B9.
+- [x] **B11 — Managed block semantics.** Depends on: B9.
   - Block = fenced Markdown with info string `fairlead` (compatible with
     issues filed by the current extension).
   - `update_issue`: intact block → replace; no block → append; malformed

@@ -36,6 +36,11 @@ export {
 } from './envelope.js';
 export type { ConnectorCommand } from './command.js';
 export { toConnectorCommand } from './command.js';
-export type { TechnicalContext, AdfNode, AdfDocument } from './description.js';
-export { TECHNICAL_HEADING, mergeMarkdown, mergeHtml, mergeAdf } from './description.js';
+export type {
+  DescriptionUpdate,
+  DescriptionMergeResult,
+  AdfNode,
+  AdfDocument,
+} from './description.js';
+export { mergeMarkdown, mergeHtml, mergeAdf } from './description.js';
 export { mapWithConcurrency } from './concurrency.js';

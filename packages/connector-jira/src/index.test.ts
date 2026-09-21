@@ -43,4 +43,41 @@ describe('JiraConnector', () => {
     });
     expect(bodies[0]).toMatchObject({ fields: { summary: 'New title' } });
   });
+
+  it('rejects multiple Fairlead ADF blocks without mutating the issue', async () => {
+    let writes = 0;
+    const block = {
+      type: 'codeBlock',
+      attrs: { language: 'fairlead' },
+      content: [{ type: 'text', text: 'broken' }],
+    };
+    const connector = new JiraConnector({
+      baseUrl: 'https://example.atlassian.net',
+      projectKey: 'APP',
+      token: 'token',
+      fetch: (async (_url: string, init?: RequestInit) => {
+        if (init?.method) writes++;
+        return Response.json({
+          fields: {
+            description: { version: 1, type: 'doc', content: [block, block] },
+            project: { key: 'APP' },
+          },
+        });
+      }) as typeof fetch,
+    });
+    const command: ConnectorCommand = {
+      protocolVersion: 1,
+      type: 'update_issue',
+      issueId: 'APP-1',
+      technicalSection: 'replacement',
+      idempotencyKey: 'k',
+    };
+    expect(
+      await connector.execute(command, { signal: new AbortController().signal }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: 'description_conflict' },
+    });
+    expect(writes).toBe(0);
+  });
 });

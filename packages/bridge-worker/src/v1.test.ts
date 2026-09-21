@@ -157,6 +157,34 @@ describe('v1 frozen contract fixtures', () => {
     expect(await response.json()).toMatchObject({ error: { code: 'unsupported_action' } });
   });
 
+  it('maps a connector description conflict to HTTP 409', async () => {
+    const conflicting: Connector = {
+      ...connector,
+      execute: async (command) => ({
+        idempotencyKey: command.idempotencyKey,
+        ok: false,
+        error: { code: 'description_conflict', message: 'managed block is malformed' },
+      }),
+    };
+    const conflictingWorker = createEnvelopeBridgeWorker({
+      connectors: new Map([['fixture', () => conflicting]]),
+    });
+    const body = await readFile(join(contract, 'request-update-issue.json'), 'utf8');
+    const response = await conflictingWorker.fetch(
+      new Request('https://bridge.example.test/v1/commands', {
+        method: 'POST',
+        headers: { authorization: 'Bearer fairlead-token' },
+        body,
+      }),
+      env,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      error: { code: 'description_conflict' },
+    });
+  });
+
   it('gives connectors a separate, later attachment deadline', async () => {
     let signals: { signal: AbortSignal; attachmentSignal?: AbortSignal } | undefined;
     const spy: Connector = {

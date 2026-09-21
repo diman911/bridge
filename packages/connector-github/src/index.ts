@@ -50,8 +50,9 @@ export class GithubConnector implements Connector {
       error: { code, message },
     });
     const { type } = c;
+    const changesDescription = c.description !== undefined || c.technicalSection !== undefined;
     let existing = '';
-    if (type === 'update_issue') {
+    if (type === 'update_issue' && changesDescription) {
       const current = await this.f(this.path(`/issues/${encodeURIComponent(c.issueId)}`), {
         headers: this.h(),
         signal: o.signal,
@@ -60,6 +61,8 @@ export class GithubConnector implements Connector {
         return fail('github_request_failed', `${current.status} ${current.statusText}`);
       existing = ((await current.json()) as { body?: string | null }).body ?? '';
     }
+    const merged = changesDescription ? mergeMarkdown(existing, c) : undefined;
+    if (merged && !merged.ok) return fail(merged.error.code, merged.error.message);
     const r = await this.f(
       type === 'create_issue'
         ? this.path('/issues')
@@ -69,7 +72,7 @@ export class GithubConnector implements Connector {
         headers: this.h(true),
         body: JSON.stringify({
           ...(c.subject === undefined ? {} : { title: c.subject }),
-          body: mergeMarkdown(existing, c.description ?? '', c.technicalSection ?? ''),
+          ...(merged?.ok ? { body: merged.value } : {}),
         }),
         signal: o.signal,
       },

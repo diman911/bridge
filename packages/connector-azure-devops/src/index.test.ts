@@ -41,4 +41,33 @@ describe('AzureDevOpsConnector', () => {
       ]),
     );
   });
+
+  it('returns description_conflict for malformed managed HTML', async () => {
+    let writes = 0;
+    const connector = new AzureDevOpsConnector({
+      organization: 'acme',
+      project: 'app',
+      token: 't',
+      fetch: (async (_url: string, init?: RequestInit) => {
+        if (init?.method) writes++;
+        return Response.json({
+          fields: { 'System.Description': '<pre><code class="language-fairlead">unclosed' },
+        });
+      }) as typeof fetch,
+    });
+    const command: ConnectorCommand = {
+      protocolVersion: 1,
+      type: 'update_issue',
+      issueId: '12',
+      technicalSection: 'replacement',
+      idempotencyKey: 'k',
+    };
+    expect(
+      await connector.execute(command, { signal: new AbortController().signal }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: 'description_conflict' },
+    });
+    expect(writes).toBe(0);
+  });
 });
