@@ -4,24 +4,39 @@
 
 The cloud-mode Worker has two Wrangler environments:
 
-| Environment | Worker name | Public hostname | Control Plane Service Binding |
-| --- | --- | --- | --- |
-| `dev` | `fairlead-bridge-dev` | `https://dev.bridge.fairleadhq.com` | `control-plane-dev` |
-| `production` | `fairlead-bridge` | `https://bridge.fairleadhq.com` | `control-plane` |
+| Environment  | Worker name           | Public hostname                     | Control Plane Service Binding |
+| ------------ | --------------------- | ----------------------------------- | ----------------------------- |
+| `dev`        | `fairlead-bridge-dev` | `https://dev.bridge.fairleadhq.com` | `control-plane-dev`           |
+| `production` | `fairlead-bridge`     | `https://bridge.fairleadhq.com`     | `control-plane`               |
 
-Deploy commands, when deployment is approved:
+The commands below use the same script that Cloudflare Workers Builds runs.
+`dev` deploys immediately; `production` uploads a version only and requires a
+manual promotion in the Cloudflare dashboard.
+
+For manual use:
 
 ```bash
 npm run deploy:dev --workspace @fairlead/bridge-worker
 npm run deploy:production --workspace @fairlead/bridge-worker
 ```
 
+Configure Cloudflare Workers Builds with these branch-to-command mappings:
+
+| Branch    | Environment  | Deploy command                          |
+| --------- | ------------ | --------------------------------------- |
+| `develop` | `dev`        | `node scripts/deploy-ci.mjs dev`        |
+| `main`    | `production` | `node scripts/deploy-ci.mjs production` |
+
+GitHub Actions validates these commands but does not hold Cloudflare
+credentials or deploy. Full lifecycle details are in
+[`docs/ci-cd.md`](../ci-cd.md).
+
 Deploy the matching Control Plane environment first so the `CpRpc` Service
 Binding target exists. Validate a configuration without deploying with:
 
 ```bash
-npx wrangler deploy --env dev --dry-run
-npx wrangler deploy --env production --dry-run
+node scripts/deploy-ci.mjs dev --dry-run
+node scripts/deploy-ci.mjs production --dry-run
 ```
 
 The two environments use separate Control Plane workers and separate D1

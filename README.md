@@ -25,6 +25,14 @@ npm run build
 npm test
 ```
 
+## Cloud deployment
+
+Cloudflare Workers Builds deploys `develop` to the dev Worker automatically.
+Pushes to `main` upload a production version, which a platform operator then
+promotes manually in the Cloudflare dashboard. See
+[`docs/ci-cd.md`](docs/ci-cd.md) and the
+[`cloud Bridge deployment runbook`](docs/runbooks/cloud-bridge-deployment.md).
+
 ## Project structure
 
 ```text

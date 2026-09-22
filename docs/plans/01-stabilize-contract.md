@@ -15,7 +15,7 @@ extension's vendored copy — depends on this shape being settled first.
 ## Current state (read before starting)
 
 - `TargetReference` already covers `issue | test_case | test_run |
-  incident | none`.
+incident | none`.
 - `IntegrationAction` already includes `transition_issue` as distinct from
   `update_issue`, plus `add_comment`, `attach_evidence`, `write_test_result`,
   `share_only`.
@@ -45,7 +45,7 @@ extension's vendored copy — depends on this shape being settled first.
   go through `Connector.execute()` or a separate method on `Connector`.
 - Extend `IntegrationResult` with an attachment-level result list —
   decided 2026-09-21 (partial success): `attachments: Array<{ reference:
-  EvidenceReference; ok: boolean; error?: IntegrationError }>`. `ok` on the
+EvidenceReference; ok: boolean; error?: IntegrationError }>`. `ok` on the
   overall result reflects the issue mutation only, not attachment outcomes.
 - Keep `TargetReference`'s `test_case`/`test_run`/`incident` variants and
   `transition_issue` as already drafted — decided 2026-09-21 not to narrow
@@ -74,7 +74,7 @@ extension's vendored copy — depends on this shape being settled first.
   source of truth for what "incompatible" means — `validateIntegrationCommand()`
   rejects a mismatched command with `error.code: 'unsupported_protocol_version'`.
 - **`ReadOperation`/`ReadResult`** (`src/types.ts`) — `{ type: 'search',
-  query, ... } | { type: 'fetch', id, ... }`, results carry a shared
+query, ... } | { type: 'fetch', id, ... }`, results carry a shared
   `IssueSummary` (`id`, `title`, `url`, `status?`). **Decided: a separate
   optional `Connector.read()` method, not folded into `execute()`** — a
   read has no target mutation, no idempotency concern, and a different
@@ -85,7 +85,7 @@ extension's vendored copy — depends on this shape being settled first.
   wouldn't need it, but every v1 connector (Jira/GitHub/Azure DevOps)
   implements it.
 - **`AttachmentResult[]`** added to `IntegrationResult` as `attachments?:
-  AttachmentResult[]`, exactly the shape task 01 specified.
+AttachmentResult[]`, exactly the shape task 01 specified.
 - **Validation** (`src/validation.ts`, new): `validateIntegrationCommand()`
   checks protocol version, target kind, outcome, non-empty valid actions,
   and required string fields — returns a typed `{ error }` rather than

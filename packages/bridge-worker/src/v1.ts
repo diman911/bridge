@@ -54,7 +54,9 @@ function resolved(value: unknown): value is ResolvedBridgeCredential {
     typeof candidate.connector.catalog_type === 'string'
   );
 }
-function attachmentRouting(request: Request): { projectId: string; integrationInstanceId: string } | Response {
+function attachmentRouting(
+  request: Request,
+): { projectId: string; integrationInstanceId: string } | Response {
   const projectId = request.headers.get(ATTACHMENT_PROJECT_ID_HEADER)?.trim();
   const integrationInstanceId = request.headers
     .get(ATTACHMENT_INTEGRATION_INSTANCE_ID_HEADER)

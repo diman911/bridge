@@ -47,7 +47,7 @@ Server (on-prem) is out of scope for this stage — it would need
 - New package `packages/connector-azure-devops/`, implements `Connector`
   from `bridge-core`.
 - `create_issue` → `POST
-  https://dev.azure.com/{organization}/{project}/_apis/wit/workitems/$Bug`
+https://dev.azure.com/{organization}/{project}/_apis/wit/workitems/$Bug`
   (JSON Patch body per the Azure DevOps Work Items REST API).
   `update_issue` → `PATCH` the same work item.
 - `search`/`fetch` via the Work Item Query Language (WIQL) endpoint and
@@ -57,7 +57,7 @@ Server (on-prem) is out of scope for this stage — it would need
   `AttachedFile` relation) — use it, not a workaround. Report per-file
   results into `IntegrationResult.attachments`.
 - Credential-validity check: `GET
-  https://app.vssps.visualstudio.com/_apis/profile/profiles/me` — the
+https://app.vssps.visualstudio.com/_apis/profile/profiles/me` — the
   standard Azure DevOps "who am I" call, works for both OAuth and PAT.
 - OAuth flow specifics (Entra ID app registration, redirect URI, API
   permission/scope) are a `control-plane` concern (task 17) — this

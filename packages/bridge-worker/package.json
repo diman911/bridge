@@ -10,8 +10,8 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "dev": "wrangler dev --local",
-    "deploy:dev": "npm run build && wrangler deploy --env dev",
-    "deploy:production": "npm run build && wrangler deploy --env production"
+    "deploy:dev": "node ../../scripts/deploy-ci.mjs dev",
+    "deploy:production": "node ../../scripts/deploy-ci.mjs production"
   },
   "dependencies": {
     "@fairlead/bridge-core": "0.1.0",
