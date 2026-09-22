@@ -70,6 +70,12 @@ target or action is a non-breaking manifest addition. The Worker answers an
 undeclared pair with `unsupported_action` (422) and connectors do the same when
 called directly. Only `issue` targets have a v1 connector implementation.
 
+`TargetReference` reserves `test_case`, `test_run`, `incident` and `none`;
+`transition_issue` stays distinct from the `update` action. These shapes do
+not imply v1 provider support. A connector advertises only implemented
+capabilities, and clients must tolerate additive capability fields they do
+not recognize.
+
 Every connector must pass the supplied abort signal to abortable provider
 requests. A timeout remains an unknown provider-side outcome: an aborted
 client request cannot prove that a provider mutation did not complete.
@@ -124,10 +130,11 @@ update that filename's entry in the body.
 
 ### Results
 
-`IntegrationResult.ok` reflects the issue mutation only; it carries no
-attachment outcomes. A successful issue mutation carries `issueId` (the
-provider identifier required by the separate attachment route) and may carry
-`issueUrl` for presentation. `IntegrationError.httpStatus` is limited to retry-safe
+`IntegrationResult.ok` reflects the issue mutation only. A successful issue
+mutation carries `issueId` (the provider identifier required by the separate
+attachment route) and may carry `issueUrl` for presentation. Each upload
+returns its own `AttachmentResult` from `POST /v1/attachments`; a failed
+upload does not change the issue command result. `IntegrationError.httpStatus` is limited to retry-safe
 upstream statuses (`429`, `502`, `503`, `504`); `retryable: true` maps to `503`
 when no status is supplied.
 
@@ -138,16 +145,16 @@ write-only connector need not implement it; every v1 issue-tracker
 connector does). `ReadOperation` is `{ type: 'search', query, ... } |
 { type: 'fetch', id, ... }`. `ReadResult.issues` (search) /
 `ReadResult.issue` (fetch) use the shared `IssueSummary` shape
-(`id`, `title`, `url`, `status?`). A fetch additionally carries the normalized
-`description`, provider-native `rawDescription`, and attachment metadata
-(`id`, `filename`) so a client can preserve provider formatting and detect an
-existing Fairlead section before an update. It never carries attachment bytes.
-Search results remain summaries. These additive fields require no protocol
-version bump.
+(`id`, `title`, `url`, `status?`). In the current implementation, fetch may
+also carry normalized `description`, provider-native `rawDescription`, and
+attachment metadata (`id`, `filename`) for editing and managed-section
+detection. It never carries attachment bytes. Search results remain summaries.
 
 ## Validation
 
-Shape validation happens once, in the envelope decoder (`decodeEnvelope()`).
+Shape validation happens once, in the envelope decoder (`decodeEnvelope()`),
+which returns a typed error (including `unsupported_protocol_version`) rather
+than throwing for malformed input.
 Whether the _specific_ resolved connector
 supports the intent's action is a `ConnectorCapabilities` check
 `bridge-worker` makes against the connector it resolved.

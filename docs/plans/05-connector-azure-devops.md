@@ -1,7 +1,7 @@
 # 05 — connector-azure-devops
 
 **Status:** in progress — implementation and local tests exist; live Azure DevOps validation remains open
-**Depends on:** [01-stabilize-contract.md](01-stabilize-contract.md), [02-bridge-worker.md](02-bridge-worker.md), `control-plane` task 17 (Azure DevOps catalog entry + connect flow — see `control-plane/docs/plans/17-azure-devops-catalog-and-connect-flow.md`)
+**Depends on:** [bridge-core contract](../specs/bridge-core-contract.md), [02-bridge-worker.md](02-bridge-worker.md), `control-plane` task 17 (Azure DevOps catalog entry + connect flow — see `control-plane/docs/plans/17-azure-devops-catalog-and-connect-flow.md`)
 **Related:** [chrome-extension plan — "Protocol v1 scope"](../../../chrome-extension/docs/plans/integration-connector-gateway.md)
 
 ## Why

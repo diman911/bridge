@@ -5,8 +5,8 @@ report; that design was dropped — see "History" — the name stays so links
 remain stable.)_
 
 **Status:** Accepted — nothing here is implemented yet. Task list: [08](08-report-envelope-task-list.md).
-**Depends on:** [01-stabilize-contract.md](01-stabilize-contract.md) (revises its output)
-**Revises:** [01](01-stabilize-contract.md), [02](02-bridge-worker.md), [06](06-retire-extension-direct-transport.md), and the source plan's "Protocol v1 scope" in [`chrome-extension/docs/plans/integration-connector-gateway.md`](../../../chrome-extension/docs/plans/integration-connector-gateway.md)
+**Depends on:** [bridge-core contract](../specs/bridge-core-contract.md) (revises its output)
+**Revises:** [bridge-core contract](../specs/bridge-core-contract.md), [02](02-bridge-worker.md), [06](06-retire-extension-direct-transport.md), and the source plan's "Protocol v1 scope" in [`chrome-extension/docs/plans/integration-connector-gateway.md`](../../../chrome-extension/docs/plans/integration-connector-gateway.md)
 **Decision record (extension side):** [ADR-012](../../../chrome-extension/docs/architecture/decisions/ADR-012-narrow-bridge-contract.md)
 
 ## Why

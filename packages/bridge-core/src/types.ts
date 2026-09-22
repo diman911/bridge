@@ -1,7 +1,7 @@
 // Generic integration contract described in
 // ../../../chrome-extension/docs/plans/integration-connector-gateway.md
 // ("Generic integration contract", "Protocol v1 scope"). Stabilized per
-// docs/plans/01-stabilize-contract.md.
+// docs/specs/bridge-core-contract.md.
 
 import { SUPPORTED_PROTOCOL_VERSIONS } from './envelope.js';
 

@@ -13,7 +13,9 @@ decision that gates everything else.
 `direct` preserved) and Phase 2 (`bridge-worker` execution) merged into one
 delivery — see that plan's "Decision" section for why. This repo's actual
 work is broken into the numbered task files below:
-[01](01-stabilize-contract.md) (contract), [02](02-bridge-worker.md)
+the completed contract stabilization (see
+[`../specs/bridge-core-contract.md`](../specs/bridge-core-contract.md)),
+[02](02-bridge-worker.md)
 (`bridge-worker`), [03](03-connector-jira.md) and
 [05](05-connector-azure-devops.md) (the remaining numbered connector plans;
 GitHub connector behavior is specified in
@@ -79,18 +81,16 @@ connector that stays within the standard protocol fields.
 - HAR files and screenshots are native tracker attachments. Commands carry
   short-lived references to separately stored, sanitized Data Plane evidence,
   never binary attachment data or a full recording.
-- **Attachment failure after a successful issue mutation — decided
-  2026-09-21: partial success.** The command reports `ok: true` with the
-  issue reference, plus a per-file attachment result list
-  (`IntegrationResult.attachments`, not yet in `src/types.ts`). See
-  [01-stabilize-contract.md](01-stabilize-contract.md).
+- **Attachment failure after a successful issue mutation — partial success.**
+  Each file upload is a separate request and returns its own
+  `AttachmentResult`; it does not change the issue command result. See the
+  [bridge-core contract](../specs/bridge-core-contract.md#results).
 - **Extensibility reserved now.** `TargetReference` already covers
-  `test_case`/`test_run`/`incident`/`none` and `IntegrationAction` already
-  has `transition_issue` distinct from `update_issue` in the current draft
+  `test_case`/`test_run`/`incident`/`none` and `transition_issue` remains
+  distinct from `update` in the contract
   (`src/types.ts`) — decided 2026-09-21 to keep these as-is rather than
   narrow to `issue`-only, so a future test-case or close-bug use case is an
-  additive capability, not a protocol version bump. No v1 connector
-  declares support for them.
+  additive capability. No v1 connector declares support for those targets.
 - Control Plane owns tracker-instance configuration and Bridge routing. The
   extension receives only the resolved Bridge address and capabilities; Bridge
   resolves the tracker endpoint/configuration and the caller's personal
@@ -100,10 +100,7 @@ connector that stays within the standard protocol fields.
 
 Superseded by the numbered task files, in dependency order:
 
-1. **[01-stabilize-contract.md](01-stabilize-contract.md)** — finish
-   `packages/bridge-core`: protocol version marker, `ReadOperation` type,
-   attachment-result field, validation, conformance tests.
-2. **[02-bridge-worker.md](02-bridge-worker.md)** — Cloudflare Worker
+1. **[02-bridge-worker.md](02-bridge-worker.md)** — Cloudflare Worker
    adapter (`bridge-worker`), cloud-mode execution, CP integration
    (credential/config resolution, identity-token verification).
 3. **[03-connector-jira.md](03-connector-jira.md)** and
