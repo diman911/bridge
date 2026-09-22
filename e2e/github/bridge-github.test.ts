@@ -75,4 +75,34 @@ describe.skipIf(!token || !owner || !repo)('e2e: local Bridge + local CP + real 
       repository_url: `https://api.github.com/repos/${owner}/${repo}`,
     });
   });
+
+  it.each([
+    ['an invalid identity token', 'not-a-valid-identity-token'],
+    ['an expired identity token', () => servers.seed.expiredBridgeIdentityToken],
+  ])(
+    'rejects %s through the real CP Service Binding before connector dispatch',
+    async (_label, token) => {
+      const response = await fetch(`${bridgeUrl}/v1/commands`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${typeof token === 'function' ? token() : token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          protocolVersion: 1,
+          type: 'create_issue',
+          project_id: servers.seed.projectId,
+          integration_instance_id: servers.seed.githubIntegrationInstanceId,
+          subject: 'must not be dispatched',
+          description: 'authentication should reject this request first',
+        }),
+      });
+
+      const responseText = await response.text();
+      expect(response.status, `${responseText}\n${servers.diagnostics()}`).toBe(401);
+      expect(JSON.parse(responseText)).toMatchObject({
+        error: { code: 'invalid_token' },
+      });
+    },
+  );
 });

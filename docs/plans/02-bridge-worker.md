@@ -65,9 +65,11 @@ none` command (source plan, "Generic integration contract") touches no
 
 ## Acceptance criteria
 
-- [ ] `bridge-worker` rejects an invalid/expired token before dispatching
+- [x] `bridge-worker` rejects an invalid/expired token before dispatching
       to any connector — via `resolveBridgeCredential`'s built-in
-      verification, one round trip, not a separate check.
+      verification, one round trip, not a separate check. Covered by the
+      local CP + Worker E2E suite through the real `CONTROL_PLANE` Service
+      Binding for both malformed and cryptographically signed expired tokens.
 - [ ] A command's credential + config resolution is that same one round
       trip to Control Plane, keyed by `project_id` + `integration_instance_id`.
 - [ ] Request timeout is read from routing/config data, defaults to 15s.
