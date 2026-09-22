@@ -17,11 +17,10 @@ because the vendoring decision below is this repo's to make.
 
 ## Task
 
-- **Vendor the stabilized contract** (task 01) into `chrome-extension` —
-  per this repo's own "Decided: extension compatibility and contract
-  distribution" (`00-bootstrap.md`): a copy, not a registry package or
-  codegen. `bridge-core` is the source of truth; `chrome-extension` is
-  always the catching-up side.
+- **Use the vendored wire contract** from `bridge-core` in `chrome-extension`.
+  The extension syncs types with `npm run bridge-contract:sync` and checks
+  drift with `npm run bridge-contract:check`; `bridge-core` remains the
+  source of truth.
 - **In `chrome-extension`: introduce a shared `Connector` interface.**
   Today there is no `ITrackerClient` — `submit.ts` branches on
   `profile.bugTracker` and calls `jira-client.ts`/`github-client.ts`

@@ -24,8 +24,8 @@ flowchart LR
 
 `bridge-worker` (Cloudflare Worker) implements the `CG` node above
 (`cloud`-mode Bridge); `bridge-runner` (Node.js) implements `RG`
-(`private`-mode Bridge). Neither exists yet — see
-[`../plans/00-bootstrap.md`](../plans/00-bootstrap.md).
+(`private`-mode Bridge). See [`../plans/`](../plans/README.md) for current
+implementation status and remaining work.
 
 ## Current-state package map
 
@@ -42,5 +42,5 @@ flowchart LR
 | Depends on            | For                                                                                                                                                                                                                                                       | Status                                                                                                      |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `../control-plane`    | `bridge_id` assignment, org/project routing, connector configuration, authorization                                                                                                                                                                       | Not yet implemented on the CP side — CP's current README does not describe a Bridge/connector routing layer |
-| `../chrome-extension` | Consumer of `@fairlead/bridge-core`'s command types; today `submit.ts` branches on `profile.bugTracker` directly against `jira-client.ts`/`github-client.ts` with no shared interface (see `../chrome-extension/docs/specs/issue-tracker-integration.md`) | Refactor not started — see open decision in `../plans/00-bootstrap.md`                                      |
+| `../chrome-extension` | Consumer of the Bridge wire contract; contract types are vendored from `packages/bridge-core` | Bridge cutover tracked in [`../plans/06-retire-extension-direct-transport.md`](../plans/06-retire-extension-direct-transport.md) |
 | `../data-plane`       | Evidence referenced by URL in `EvidenceReference`                                                                                                                                                                                                         | No direct coupling; this repo never stores evidence                                                         |

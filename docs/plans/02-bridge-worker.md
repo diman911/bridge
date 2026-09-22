@@ -3,7 +3,7 @@
 **Status:** complete — local CP + Worker + GitHub E2E passed (2026-09-23)
 **Depends on:** [bridge-core contract](../specs/bridge-core-contract.md)
 **Amended by:** [07-report-envelope-and-versioning.md](07-report-envelope-and-versioning.md) — the worker exposes `POST /v1/commands`, `POST /v1/attachments` and `POST /v1/reads`, decodes versioned commands into an internal model, derives connector id, project context and caller from Control Plane and the verified token, and drops the `command.connectorId` cross-check. Apply on top of the task below.
-**Related:** [00-bootstrap.md](00-bootstrap.md), [chrome-extension plan — "Bridge", "Routing and configuration"](../../../chrome-extension/docs/plans/integration-connector-gateway.md), `control-plane` tasks [06](../../../control-plane/docs/plans/06-bridge-tables.md), [09](../../../control-plane/docs/plans/09-bridge-credential-resolution-endpoint.md)
+**Related:** [plans index](README.md), [chrome-extension plan — "Bridge", "Routing and configuration"](../../../chrome-extension/docs/plans/integration-connector-gateway.md), `control-plane` tasks [06](../../../control-plane/docs/plans/06-bridge-tables.md), [09](../../../control-plane/docs/plans/09-bridge-credential-resolution-endpoint.md)
 
 ## Why
 

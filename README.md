@@ -10,8 +10,8 @@ customer's own network) — the same `cloud`/`private` split Data Plane
 already uses, not two differently-named services.
 
 Full design: [`../chrome-extension/docs/plans/integration-connector-gateway.md`](../chrome-extension/docs/plans/integration-connector-gateway.md).
-Current-state orientation: [`AGENTS.md`](AGENTS.md). Work plan:
-[`docs/plans/00-bootstrap.md`](docs/plans/00-bootstrap.md).
+Current-state orientation: [`AGENTS.md`](AGENTS.md). Active work:
+[`docs/plans/`](docs/plans/README.md).
 
 ## Status
 

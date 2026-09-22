@@ -134,7 +134,11 @@ update that filename's entry in the body.
 mutation carries `issueId` (the provider identifier required by the separate
 attachment route) and may carry `issueUrl` for presentation. Each upload
 returns its own `AttachmentResult` from `POST /v1/attachments`; a failed
-upload does not change the issue command result. `IntegrationError.httpStatus` is limited to retry-safe
+upload does not change the issue command result. Create and update are
+synchronous single provider mutations. Protocol v1 does not guarantee
+exactly-once execution: after a timeout or connection loss, the provider may
+have completed the mutation, so the outcome is unknown and retrying may repeat
+it. `IntegrationError.httpStatus` is limited to retry-safe
 upstream statuses (`429`, `502`, `503`, `504`); `retryable: true` maps to `503`
 when no status is supplied.
 

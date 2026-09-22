@@ -36,8 +36,7 @@ command/connector contract (envelope v1, `ConnectorCommand`, `Connector`,
 `connector-jira`, `connector-github`, or any Log Source connector exist yet
 — see the "Portable implementation shape" section of the linked plan for
 the target package tree, and
-[`docs/plans/00-bootstrap.md`](docs/plans/00-bootstrap.md) for the concrete
-next steps.
+[`docs/plans/`](docs/plans/README.md) for active implementation work.
 
 ## Role in the ecosystem
 
@@ -80,8 +79,8 @@ store raw captures or copies of tracker issues — see the linked plan's
 - **[`../chrome-extension/docs/plans/integration-connector-gateway.md`](../chrome-extension/docs/plans/integration-connector-gateway.md)**
   — the full design: transports, contract, routing, Bridge (`cloud`/`private`
   modes), Log Source connectors, delivery phases, open questions.
-- **`docs/plans/00-bootstrap.md`** — the concrete work plan for what to
-  build first in _this_ repo.
+- **[`docs/plans/`](docs/plans/README.md)** — active implementation plans
+  for this repo.
 - **`docs/architecture/overview.md`** — this repo's own architecture map
   (thin; defers to the linked plan for anything not yet decided).
 - **`docs/processes/ai-workflow.md`** — how to work in this repo: where new
