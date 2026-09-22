@@ -97,6 +97,21 @@ attachments. Credential validation calls `GET /user`; it does not mutate a
 repository or issue. Issue transitions and test-management targets are not
 implemented.
 
+### Jira Cloud
+
+The Jira connector targets Jira Cloud REST API v3. It advertises only the
+`issue` target with `create`/`update`, `fetch`/`search`, and attachments. Issue
+descriptions are converted from plain text to ADF documents: blank-line
+separated paragraphs become ADF paragraphs, and single line breaks become
+`hardBreak` nodes. Updates first verify that the issue belongs to the configured
+project; fetch and attachment operations enforce the same project boundary.
+Search is constrained to that project and returns at most ten summaries.
+Credential validation calls `GET /rest/api/3/myself` and does not mutate Jira.
+OAuth and scoped API-token credentials use the Atlassian API Gateway with the
+configured cloud ID; regular API-token credentials use the configured site
+URL. Credentials are supplied by Bridge for each operation and are not stored
+by the connector.
+
 ### Attachments
 
 Attachments never travel with a command. `POST /v1/attachments` requires
