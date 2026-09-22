@@ -13,6 +13,7 @@
   "scripts": {
     "build": "npm run build --workspace=@fairlead/bridge-core && npm run build --workspace=@fairlead/connector-jira --workspace=@fairlead/connector-github --workspace=@fairlead/connector-azure-devops && npm run build --workspace=@fairlead/bridge-worker",
     "test": "vitest run",
+    "test:workers": "vitest run --config vitest.workers.config.ts",
     "test:e2e:github": "node --env-file-if-exists=.env.e2e ./node_modules/vitest/vitest.mjs run --config e2e/vitest.config.ts",
     "test:e2e:github:connector": "node --env-file-if-exists=.env.e2e ./node_modules/vitest/vitest.mjs run --config e2e/vitest.config.ts github/connector-github.integration.test.ts",
     "test:e2e:jira:connector": "node --env-file-if-exists=.env.e2e ./node_modules/vitest/vitest.mjs run --config e2e/vitest.config.ts jira/connector-jira.integration.test.ts",
@@ -28,16 +29,17 @@
     "format:check": "prettier --check ."
   },
   "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.2.2",
     "@cloudflare/workers-types": "^5.20260921.1",
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.0.0",
-    "@vitest/coverage-v8": "^5.0.0",
+    "@vitest/coverage-v8": "^4.1.11",
     "eslint": "^10.8.1",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.6",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.67.0",
-    "vitest": "^5.0.0",
+    "vitest": "^4.1.11",
     "wrangler": "^4.39.0"
   }
 }

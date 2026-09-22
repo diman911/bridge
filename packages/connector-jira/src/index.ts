@@ -62,7 +62,10 @@ export class JiraConnector implements Connector {
       c.authType === 'oauth' || c.authType === 'scoped_api_token'
         ? `https://api.atlassian.com/ex/jira/${encodeURIComponent(c.cloudId!.trim())}`
         : c.baseUrl.replace(/\/+$/, '');
-    this.f = c.fetch ?? fetch;
+    // Cloudflare's native fetch requires its original global receiver. Keep
+    // the injectable fetch untouched for tests, but invoke the platform fetch
+    // through a wrapper so it is not detached from globalThis.
+    this.f = c.fetch ?? ((...args: Parameters<typeof fetch>) => globalThis.fetch(...args));
   }
   private h(json = false) {
     const authorization =

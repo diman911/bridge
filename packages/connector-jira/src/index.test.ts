@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { ConnectorAttachment, ConnectorCommand } from '@fairlead/bridge-core';
 import { runConnectorConformanceTests } from '@fairlead/bridge-core/conformance';
 import { JiraConnector } from './index.js';
@@ -14,6 +14,24 @@ runConnectorConformanceTests(
 );
 
 describe('JiraConnector', () => {
+  it('invokes the platform fetch with its global receiver', async () => {
+    const nativeFetch = function (this: unknown) {
+      expect(this).toBe(globalThis);
+      return Promise.resolve(Response.json({}));
+    } as typeof fetch;
+    vi.stubGlobal('fetch', nativeFetch);
+    try {
+      const connector = new JiraConnector({
+        baseUrl: 'https://example.atlassian.net',
+        projectKey: 'APP',
+        token: 'token',
+      });
+      await expect(connector.checkCredential()).resolves.toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('requires cloudId for OAuth configuration', () => {
     expect(
       () =>

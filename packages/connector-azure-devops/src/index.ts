@@ -47,7 +47,7 @@ export class AzureDevOpsConnector implements Connector {
   private readonly base: string;
   private readonly organizationBase: string;
   constructor(private readonly c: AzureDevOpsConnectorConfig) {
-    this.f = c.fetch ?? fetch;
+    this.f = c.fetch ?? globalThis.fetch.bind(globalThis);
     this.organizationBase = `https://dev.azure.com/${encodeURIComponent(c.organization)}`;
     this.base = `${this.organizationBase}/${encodeURIComponent(c.project)}`;
   }

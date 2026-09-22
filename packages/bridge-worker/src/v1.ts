@@ -376,6 +376,17 @@ export function createEnvelopeBridgeWorker(
           return response(notify(routing.version, result), result.ok ? 200 : 422);
         } catch (cause) {
           const timeout = timedOut(cause);
+          const failure =
+            cause instanceof Error
+              ? { name: cause.name, message: cause.message }
+              : { name: typeof cause, message: String(cause) };
+          console.error('bridge connector execution failed', {
+            ...failure,
+            connector: credential.connector.catalog_type,
+            projectId: routing.projectId,
+            integrationInstanceId: routing.integrationInstanceId,
+            timeout,
+          });
           return response(
             notify(routing.version, {
               ok: false,
