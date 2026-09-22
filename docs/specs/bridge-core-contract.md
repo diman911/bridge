@@ -116,8 +116,12 @@ write-only connector need not implement it; every v1 issue-tracker
 connector does). `ReadOperation` is `{ type: 'search', query, ... } |
 { type: 'fetch', id, ... }`. `ReadResult.issues` (search) /
 `ReadResult.issue` (fetch) use the shared `IssueSummary` shape
-(`id`, `title`, `url`, `status?`). It carries no raw description or
-attachment list. Additive — no protocol version bump.
+(`id`, `title`, `url`, `status?`). A fetch additionally carries the normalized
+`description`, provider-native `rawDescription`, and attachment metadata
+(`id`, `filename`) so a client can preserve provider formatting and detect an
+existing Fairlead section before an update. It never carries attachment bytes.
+Search results remain summaries. These additive fields require no protocol
+version bump.
 
 ## Validation
 

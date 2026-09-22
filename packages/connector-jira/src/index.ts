@@ -21,12 +21,22 @@ function toAdf(description: string) {
       .filter((paragraph) => paragraph.trim())
       .map((paragraph) => ({
         type: 'paragraph',
-        content: paragraph.split('\n').flatMap((line, index) => [
-          ...(index === 0 ? [] : [{ type: 'hardBreak' }]),
-          ...(line ? [{ type: 'text', text: line }] : []),
-        ]),
+        content: paragraph
+          .split('\n')
+          .flatMap((line, index) => [
+            ...(index === 0 ? [] : [{ type: 'hardBreak' }]),
+            ...(line ? [{ type: 'text', text: line }] : []),
+          ]),
       })),
   };
+}
+
+function adfText(value: unknown): string {
+  if (!value || typeof value !== 'object') return '';
+  const node = value as { text?: unknown; content?: unknown };
+  const own = typeof node.text === 'string' ? node.text : '';
+  const children = Array.isArray(node.content) ? node.content.map(adfText).join('') : '';
+  return own + children;
 }
 export interface JiraConnectorConfig {
   baseUrl: string;
@@ -55,7 +65,9 @@ export class JiraConnector implements Connector {
   private f;
   constructor(private c: JiraConnectorConfig) {
     if ((c.authType === 'oauth' || c.authType === 'scoped_api_token') && !c.cloudId?.trim())
-      throw new Error(`Jira ${c.authType === 'oauth' ? 'OAuth' : 'scoped API token'} configuration requires cloudId`);
+      throw new Error(
+        `Jira ${c.authType === 'oauth' ? 'OAuth' : 'scoped API token'} configuration requires cloudId`,
+      );
     if (c.authType === 'scoped_api_token' && !c.email?.trim())
       throw new Error('Jira scoped API token configuration requires email');
     this.base =
@@ -284,14 +296,20 @@ export class JiraConnector implements Connector {
       };
     }
     const r = await this.f(
-      `${this.base}/rest/api/3/issue/${encodeURIComponent(op.id)}?fields=summary,status,project`,
+      `${this.base}/rest/api/3/issue/${encodeURIComponent(op.id)}?fields=summary,status,project,description,attachment`,
       { headers: this.h(), signal: options.signal },
     );
     if (!r.ok)
       return { ok: false, error: { code: 'jira_request_failed', message: String(r.status) } };
     const d = (await r.json()) as {
       key: string;
-      fields: { summary: string; status?: { name: string }; project: { key: string } };
+      fields: {
+        summary: string;
+        status?: { name: string };
+        project: { key: string };
+        description?: Record<string, unknown> | null;
+        attachment?: Array<{ id: string; filename: string }>;
+      };
     };
     if (d.fields.project.key !== this.c.projectKey)
       return {
@@ -308,6 +326,9 @@ export class JiraConnector implements Connector {
         title: d.fields.summary,
         url: `${this.base}/browse/${d.key}`,
         status: d.fields.status?.name,
+        description: adfText(d.fields.description),
+        rawDescription: d.fields.description ?? undefined,
+        attachments: d.fields.attachment ?? [],
       },
     };
   }

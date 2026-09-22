@@ -71,7 +71,8 @@ describe('JiraConnector', () => {
             key: 'APP-1',
             fields: { summary: 'Title', project: { key: 'APP' } },
           });
-        if (init?.method === 'POST' && value.endsWith('/issue')) return Response.json({ key: 'APP-1' });
+        if (init?.method === 'POST' && value.endsWith('/issue'))
+          return Response.json({ key: 'APP-1' });
         return new Response(null, { status: 204 });
       }) as typeof fetch,
     });
@@ -112,7 +113,7 @@ describe('JiraConnector', () => {
         `${oauthBase}/rest/api/3/myself`,
         `${oauthBase}/rest/api/3/issue`,
         `${oauthBase}/rest/api/3/issue/APP-1?fields=project`,
-        `${oauthBase}/rest/api/3/issue/APP-1?fields=summary,status,project`,
+        `${oauthBase}/rest/api/3/issue/APP-1?fields=summary,status,project,description,attachment`,
         `${oauthBase}/rest/api/3/issue/APP-1?fields=attachment,project`,
         `${oauthBase}/rest/api/3/issue/APP-1/attachments`,
         `${oauthBase}/rest/api/3/attachment/old`,
@@ -130,7 +131,10 @@ describe('JiraConnector', () => {
       email: 'person@example.test',
       authType: 'api_token',
       fetch: (async (url: string | URL | Request, init?: RequestInit) => {
-        request = { url: String(url), authorization: new Headers(init?.headers).get('authorization') };
+        request = {
+          url: String(url),
+          authorization: new Headers(init?.headers).get('authorization'),
+        };
         return Response.json({});
       }) as typeof fetch,
     });
@@ -152,7 +156,10 @@ describe('JiraConnector', () => {
       email: 'person@example.test',
       authType: 'scoped_api_token',
       fetch: (async (url: string | URL | Request, init?: RequestInit) => {
-        request = { url: String(url), authorization: new Headers(init?.headers).get('authorization') };
+        request = {
+          url: String(url),
+          authorization: new Headers(init?.headers).get('authorization'),
+        };
         return Response.json({});
       }) as typeof fetch,
     });

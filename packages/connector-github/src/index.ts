@@ -207,6 +207,7 @@ export class GithubConnector implements Connector {
       title: string;
       html_url: string;
       state: string;
+      body?: string | null;
     };
     if (op.type === 'search')
       return {
@@ -220,7 +221,15 @@ export class GithubConnector implements Connector {
       };
     return {
       ok: true,
-      issue: { id: String(d.number), title: d.title, url: d.html_url, status: d.state },
+      issue: {
+        id: String(d.number),
+        title: d.title,
+        url: d.html_url,
+        status: d.state,
+        description: d.body ?? '',
+        rawDescription: d.body ?? '',
+        attachments: [],
+      },
     };
   }
 }

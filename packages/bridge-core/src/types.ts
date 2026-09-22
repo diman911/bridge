@@ -86,6 +86,12 @@ export interface IssueSummary {
   title: string;
   url: string;
   status?: string;
+  /** Plain-text provider description, for editable issue fields. Fetch responses only. */
+  description?: string;
+  /** Provider-native description (ADF, Markdown, or HTML), retained for Fairlead-section detection. */
+  rawDescription?: string | Record<string, unknown>;
+  /** Attachment metadata only; never attachment bytes. Fetch responses only. */
+  attachments?: Array<{ id: string; filename: string }>;
 }
 
 export interface ReadResult {

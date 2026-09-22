@@ -23,6 +23,13 @@ function toHtml(description: string): string {
     .join('');
 }
 
+function htmlText(value: string): string {
+  return value
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export interface AzureDevOpsConnectorConfig {
   token: string;
   organization: string;
@@ -216,7 +223,7 @@ export class AzureDevOpsConnector implements Connector {
   async read(op: ReadOperation, options: ConnectorExecutionOptions): Promise<ReadResult> {
     if (op.type === 'fetch') {
       const r = await this.f(
-        `${this.base}/_apis/wit/workitems/${encodeURIComponent(op.id)}?api-version=7.1`,
+        `${this.base}/_apis/wit/workitems/${encodeURIComponent(op.id)}?$expand=relations&api-version=7.1`,
         { headers: { Authorization: this.auth() }, signal: options.signal },
       );
       if (!r.ok)
@@ -227,7 +234,8 @@ export class AzureDevOpsConnector implements Connector {
       const d = (await r.json()) as {
         id: number;
         url: string;
-        fields: { 'System.Title': string; 'System.State'?: string };
+        fields: { 'System.Title': string; 'System.State'?: string; 'System.Description'?: string };
+        relations?: Array<{ rel?: string; url?: string; attributes?: { name?: string } }>;
       };
       return {
         ok: true,
@@ -236,6 +244,14 @@ export class AzureDevOpsConnector implements Connector {
           title: d.fields['System.Title'],
           url: this.webUrl(d.id),
           status: d.fields['System.State'],
+          description: htmlText(d.fields['System.Description'] ?? ''),
+          rawDescription: d.fields['System.Description'] ?? '',
+          attachments: (d.relations ?? [])
+            .filter(
+              (relation) =>
+                relation.rel === 'AttachedFile' && relation.url && relation.attributes?.name,
+            )
+            .map((relation) => ({ id: relation.url!, filename: relation.attributes!.name! })),
         },
       };
     }
