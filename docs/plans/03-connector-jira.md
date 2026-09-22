@@ -58,9 +58,10 @@ in the extension and should be reused, not reinvented.
       a successful create/update. Covered by the connector and Worker tests.
 - [x] `checkCredential()` calls `GET /rest/api/3/myself`; the real Jira
       connector suite includes a credential check but is credential-gated.
-- [ ] Wire credential validation into the profile/project-selection flow.
-      The capability manifest declares issue actions, reads and attachments;
-      it has no credential-check field, and the Worker exposes no check route.
+- [x] Wire credential validation into the profile/project-selection flow.
+      The extension checks the selected integration through
+      `POST /v1/credentials/check`; the Worker resolves credentials via CP and
+      invokes the connector's `checkCredential()`.
 - [x] `bridge-core` conformance tests are registered against this
       connector's `execute()` in `packages/connector-jira/src/index.test.ts`.
 - [ ] Run the credential-gated Jira Cloud connector E2E suite and confirm

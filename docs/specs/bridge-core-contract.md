@@ -38,14 +38,21 @@ test replays every request fixture in every stored version directory.
 
 ## Routes
 
-| Route                  | Body                                                 | Result              |
-| ---------------------- | ---------------------------------------------------- | ------------------- |
-| `POST /v1/commands`    | JSON `create_issue` / `update_issue`                 | `IntegrationResult` |
-| `POST /v1/reads`       | JSON search / fetch operation                        | `ReadResult`        |
-| `POST /v1/attachments` | `multipart/form-data`: `meta` JSON part + one `file` | `AttachmentResult`  |
+| Route                        | Body                                                                               | Result               |
+| ---------------------------- | ---------------------------------------------------------------------------------- | -------------------- |
+| `POST /v1/commands`          | JSON `create_issue` / `update_issue`                                               | `IntegrationResult`  |
+| `POST /v1/reads`             | JSON search / fetch operation                                                      | `ReadResult`         |
+| `POST /v1/attachments`       | `multipart/form-data`: `meta` JSON part + one `file`                               | `AttachmentResult`   |
 | `POST /v1/credentials/check` | JSON routing envelope (`protocolVersion`, `project_id`, `integration_instance_id`) | `{ valid: boolean }` |
 
 All routes require a Bearer identity token.
+
+Credential checks resolve the same caller credential and trusted connector
+configuration as issue commands. `{ "valid": true }` means the provider
+accepted the credential; `{ "valid": false }` means the check completed and
+the provider rejected it. Resolution, routing, unsupported-check, and timeout
+failures use the normal Bridge error envelope. The extension invokes this route
+when a user selects a Bridge-backed tracker.
 
 ## Write path: `ConnectorCommand` → `IntegrationResult`
 
@@ -75,6 +82,15 @@ the supplied text to the provider representation: Markdown for GitHub, ADF for
 Jira and HTML for Azure DevOps. Jira also refuses to update an issue outside its
 configured project.
 
+### GitHub Issues
+
+The GitHub connector maps `subject` to the issue title and the supplied
+`description` directly to the Markdown issue body on create and update. It
+supports only the `issue` target: `create`/`update`, `fetch`/`search`, and
+attachments. Credential validation calls `GET /user`; it does not mutate a
+repository or issue. Issue transitions and test-management targets are not
+implemented.
+
 ### Attachments
 
 Attachments never travel with a command. `POST /v1/attachments` requires
@@ -97,9 +113,9 @@ answered with `413 attachment_too_large` (`limitBytes`, `actualBytes`).
 `Connector.attach(attachment, { signal })` replaces by `(issue, filename)`.
 Jira and Azure DevOps upload the new file first, then remove the old one; a
 failed cleanup returns `ok: true` with a `previous_version_not_removed`
-warning. GitHub replaces the file by SHA through the Contents API, committing
-it to `connector.settings.attachments_branch` (default
-`fairlead-attachments`).
+warning. GitHub Issues has no native binary attachment endpoint, so GitHub
+replaces the file by SHA through the Contents API, committing it to
+`connector.settings.attachments_branch` (default `fairlead-attachments`).
 The GitHub connector converts the Contents API `/blob/` URL to `/raw/` and
 places it in a managed section of the issue body, preserving the surrounding
 text. Images use Markdown image syntax for inline display; other files use

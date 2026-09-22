@@ -1,6 +1,6 @@
 # 02 — bridge-worker: cloud-mode Bridge
 
-**Status:** in progress — local E2E execution with a real GitHub account remains to be confirmed
+**Status:** complete — local CP + Worker + GitHub E2E passed (2026-09-23)
 **Depends on:** [01-stabilize-contract.md](01-stabilize-contract.md)
 **Amended by:** [07-report-envelope-and-versioning.md](07-report-envelope-and-versioning.md) — the worker exposes `POST /v1/commands`, `POST /v1/attachments` and `POST /v1/reads`, decodes versioned commands into an internal model, derives connector id, project context and caller from Control Plane and the verified token, and drops the `command.connectorId` cross-check. Apply on top of the task below.
 **Related:** [00-bootstrap.md](00-bootstrap.md), [chrome-extension plan — "Bridge", "Routing and configuration"](../../../chrome-extension/docs/plans/integration-connector-gateway.md), `control-plane` tasks [06](../../../control-plane/docs/plans/06-bridge-tables.md), [09](../../../control-plane/docs/plans/09-bridge-credential-resolution-endpoint.md)
@@ -88,11 +88,11 @@ none` command (source plan, "Generic integration contract") touches no
       `e2e/github/fixtures.ts` and `e2e/github/bridge-github.test.ts`.
       A separate stubbed-Control-Plane check is not required: the local
       Control Plane exercises the actual RPC and token verification path.
-- [ ] Run the credential-gated local CP + Worker + GitHub E2E suite against
+- [x] Run the credential-gated local CP + Worker + GitHub E2E suite against
       a dedicated GitHub repository and record a passing result. The suite
       skips when `BRIDGE_E2E_GITHUB_TOKEN`, `BRIDGE_E2E_GITHUB_OWNER`, or
       `BRIDGE_E2E_GITHUB_REPO` is absent; its presence alone does not prove
-      a completed live run.
+      a completed live run. Passed 2026-09-23.
 - [x] A deploy runbook note exists covering the one-time
       `POST /internal/platform/bridges` (`mode: 'cloud'`) registration
       step — not left as tribal knowledge. See

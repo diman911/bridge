@@ -1,7 +1,7 @@
 # 06 — Retire the extension's `direct` transport for Jira/GitHub
 
 **Status:** 06a done (2026-09-21, uncommitted) — 06b not started
-**Depends on:** [01-stabilize-contract.md](01-stabilize-contract.md), [02-bridge-worker.md](02-bridge-worker.md), [03-connector-jira.md](03-connector-jira.md), [04-connector-github.md](04-connector-github.md)
+**Depends on:** [01-stabilize-contract.md](01-stabilize-contract.md), [02-bridge-worker.md](02-bridge-worker.md), [03-connector-jira.md](03-connector-jira.md)
 **Superseded in part by:** [07-report-envelope-and-versioning.md](07-report-envelope-and-versioning.md) — the contract 06b switches to is the narrow issue contract, not field-level commands; 07 is accepted, so 06b targets an HTTP Bridge client sending text commands and attachment uploads, not `Connector` wiring; 06a's `Connector` adapters stay only as the transitional `direct` path.
 **Related:** [chrome-extension plan — "Decision", "Delivery phases"](../../../chrome-extension/docs/plans/integration-connector-gateway.md), [chrome-extension `docs/specs/issue-tracker-integration.md`](../../../chrome-extension/docs/specs/issue-tracker-integration.md)
 
@@ -70,5 +70,5 @@ because the vendoring decision below is this repo's to make.
   merge moves into `connector-jira` or the extension sends a fully built body.
 - Attachment list/delete and GitHub branch upload — under Bridge, attachments
   become `data_plane_reference` uploads (product behavior change, not a refactor).
-- Connection test (`testGithubConnection`) — maps to the connector's
-  credential-validity check; no contract operation yet.
+- Connection test (`testGithubConnection`) — uses the Bridge credential check
+  route; see [`bridge-core-contract.md`](../specs/bridge-core-contract.md).

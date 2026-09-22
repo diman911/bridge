@@ -14,8 +14,10 @@ decision that gates everything else.
 delivery — see that plan's "Decision" section for why. This repo's actual
 work is broken into the numbered task files below:
 [01](01-stabilize-contract.md) (contract), [02](02-bridge-worker.md)
-(`bridge-worker`), [03](03-connector-jira.md)/[04](04-connector-github.md)/
-[05](05-connector-azure-devops.md) (the three v1 connectors), and
+(`bridge-worker`), [03](03-connector-jira.md) and
+[05](05-connector-azure-devops.md) (the remaining numbered connector plans;
+GitHub connector behavior is specified in
+[`../specs/bridge-core-contract.md`](../specs/bridge-core-contract.md)), and
 [06](06-retire-extension-direct-transport.md) (cross-repo: extension
 cutover off `direct`). This file stays the overview and the home of the
 vendoring decision below, which doesn't change with the merge.
@@ -104,10 +106,11 @@ Superseded by the numbered task files, in dependency order:
 2. **[02-bridge-worker.md](02-bridge-worker.md)** — Cloudflare Worker
    adapter (`bridge-worker`), cloud-mode execution, CP integration
    (credential/config resolution, identity-token verification).
-3. **[03-connector-jira.md](03-connector-jira.md)**,
-   **[04-connector-github.md](04-connector-github.md)**,
+3. **[03-connector-jira.md](03-connector-jira.md)** and
    **[05-connector-azure-devops.md](05-connector-azure-devops.md)** — the
-   three v1 connectors, can proceed in parallel once 01/02 land.
+   remaining numbered connector plans, can proceed in parallel once 01/02
+   land. GitHub connector behavior and capabilities are documented in the
+   bridge-core contract spec.
 4. **[06-retire-extension-direct-transport.md](06-retire-extension-direct-transport.md)**
    — cross-repo: vendor the contract into `../chrome-extension`, refactor
    its Jira/GitHub paths onto `Connector`, switch both from `direct` to

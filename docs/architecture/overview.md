@@ -35,7 +35,7 @@ flowchart LR
 | `packages/bridge-worker`    | Cloudflare Workers                           | Not started                                                                                                                 |
 | `packages/bridge-runner`    | Node.js                                      | Not started                                                                                                                 |
 | `packages/connector-jira`   | —                                            | Not started                                                                                                                 |
-| `packages/connector-github` | —                                            | Not started                                                                                                                 |
+| `packages/connector-github` | Cloudflare Workers                           | GitHub Issues connector: Markdown issues, reads, Contents API attachments, and `/user` credential validation              |
 
 ## Cross-repo dependencies
 
