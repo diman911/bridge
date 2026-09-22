@@ -72,7 +72,9 @@ none` command (source plan, "Generic integration contract") touches no
       Binding for both malformed and cryptographically signed expired tokens.
 - [ ] A command's credential + config resolution is that same one round
       trip to Control Plane, keyed by `project_id` + `integration_instance_id`.
-- [ ] Request timeout is read from routing/config data, defaults to 15s.
+- [x] Request timeout is read from routing/config data, defaults to 15s. CP
+      returns the singleton cloud Bridge's `request_timeout_seconds`; Worker
+      validates it and falls back to 15 seconds when absent or invalid.
 - [ ] Connector dispatch goes through `bridge-core`'s `Connector` interface
       only — no provider-specific branching in `bridge-worker` itself.
 - [ ] `wrangler dev --local` runs the worker locally against a stubbed

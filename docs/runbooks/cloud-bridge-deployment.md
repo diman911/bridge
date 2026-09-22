@@ -14,7 +14,11 @@ Content-Type: application/json
 }
 ```
 
-Do this once, before assigning SaaS tracker instances. The default command timeout is 15 seconds; set `request_timeout_seconds` on registration, or use `PATCH /internal/platform/bridges/{id}/timeout` to change it.
+Do this once, before assigning SaaS tracker instances. Control Plane returns
+the registered `request_timeout_seconds` to the Worker through the Service
+Binding on every command resolution. The default command timeout is 15
+seconds; set `request_timeout_seconds` on registration, or use `PATCH
+/internal/platform/bridges/{id}/timeout` to change it.
 
 Cloud-mode command handling uses the Control Plane Service Binding. It does not register or send heartbeats.
 

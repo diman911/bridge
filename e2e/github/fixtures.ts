@@ -194,6 +194,7 @@ export async function startGithubE2e(): Promise<GithubE2eServers> {
   const seedEnv = {
     ...commonEnv,
     CP_E2E_URL: controlPlaneUrl,
+    BRIDGE_E2E_URL: bridgeUrl,
     BRIDGE_E2E_GLOBAL_SIGNING_PRIVATE_KEY: keypair.privateKeyPem,
     BRIDGE_E2E_GITHUB_TOKEN: token,
     BRIDGE_E2E_GITHUB_OWNER: owner,

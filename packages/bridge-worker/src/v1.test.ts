@@ -265,6 +265,55 @@ describe('connector configuration', () => {
   });
 });
 
+describe('request timeout', () => {
+  it('uses the timeout returned by Control Plane for connector execution', async () => {
+    const slow: Connector = {
+      ...connector,
+      execute: async (_command, { signal }) =>
+        new Promise((resolve, reject) => {
+          const timer = setTimeout(() => resolve({ ok: true }), 2_000);
+          signal.addEventListener('abort', () => {
+            clearTimeout(timer);
+            reject(new DOMException('Aborted', 'AbortError'));
+          });
+        }),
+    };
+    const target = createEnvelopeBridgeWorker({
+      connectors: new Map([['fixture', () => slow]]),
+    });
+    const body = await readFile(join(contract, 'request-create-issue.json'), 'utf8');
+    const response = await target.fetch(
+      new Request('https://bridge.example.test/v1/commands', {
+        method: 'POST',
+        headers: { authorization: 'Bearer fairlead-token' },
+        body,
+      }),
+      {
+        CONTROL_PLANE: {
+          resolveBridgeCredential: async () => ({
+            credential: { token: 'provider-token', metadata: null, auth_type: 'oauth' as const },
+            connector: {
+              catalog_type: 'fixture',
+              host: null,
+              port: null,
+              account_id: null,
+              account_url: null,
+              container_id: null,
+              container_key: null,
+              container_name: null,
+            },
+            request_timeout_seconds: 1,
+          }),
+        },
+      },
+      {} as ExecutionContext,
+    );
+
+    expect(response.status).toBe(504);
+    expect(await response.json()).toMatchObject({ error: { code: 'request_timeout' } });
+  });
+});
+
 describe('unsupported protocol version', () => {
   const routing = { project_id: 'project-123', integration_instance_id: 'tracker-456' };
   const post = (path: string, body: BodyInit, headers: Record<string, string> = {}) =>
