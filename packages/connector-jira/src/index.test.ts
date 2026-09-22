@@ -14,6 +14,45 @@ runConnectorConformanceTests(
 );
 
 describe('JiraConnector', () => {
+  it('maps paragraph and single-line breaks to Jira ADF', async () => {
+    let body: { fields: { description: unknown } } | undefined;
+    const connector = new JiraConnector({
+      baseUrl: 'https://example.atlassian.net',
+      projectKey: 'APP',
+      token: 'token',
+      fetch: (async (_url: string, init?: RequestInit) => {
+        body = JSON.parse(String(init?.body));
+        return Response.json({ key: 'APP-1' });
+      }) as typeof fetch,
+    });
+
+    await connector.execute(
+      {
+        protocolVersion: 1,
+        type: 'create_issue',
+        subject: 'Title',
+        description: 'First line\nSecond line\n\nAnother paragraph',
+      },
+      { signal: new AbortController().signal },
+    );
+
+    expect(body?.fields.description).toEqual({
+      version: 1,
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'First line' },
+            { type: 'hardBreak' },
+            { type: 'text', text: 'Second line' },
+          ],
+        },
+        { type: 'paragraph', content: [{ type: 'text', text: 'Another paragraph' }] },
+      ],
+    });
+  });
+
   it('updates the fields present in a narrow command', async () => {
     const bodies: unknown[] = [];
     const connector = new JiraConnector({

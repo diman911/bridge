@@ -13,15 +13,18 @@ import {
 } from '@fairlead/bridge-core';
 
 function toAdf(description: string) {
+  const paragraphs = description.replace(/\r\n?/g, '\n').split(/\n\n+/);
   return {
     version: 1 as const,
     type: 'doc',
-    content: description
-      .split(/\n\n+/)
+    content: paragraphs
       .filter((paragraph) => paragraph.trim())
       .map((paragraph) => ({
         type: 'paragraph',
-        content: [{ type: 'text', text: paragraph }],
+        content: paragraph.split('\n').flatMap((line, index) => [
+          ...(index === 0 ? [] : [{ type: 'hardBreak' }]),
+          ...(line ? [{ type: 'text', text: line }] : []),
+        ]),
       })),
   };
 }
