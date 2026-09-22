@@ -15,7 +15,8 @@ Current-state orientation: [`AGENTS.md`](AGENTS.md). Active work:
 
 ## Status
 
-Early scaffold — see [`AGENTS.md`](AGENTS.md#status).
+Cloud-mode Bridge and three issue-tracker connectors are implemented. Current
+validation and extension cutover work is listed in [`docs/plans/`](docs/plans/README.md).
 
 ## Getting started
 
@@ -38,13 +39,14 @@ promotes manually in the Cloudflare dashboard. See
 ```text
 packages/
   bridge-core/       command validation, routing, policy, Connector interface (implemented)
-  bridge-worker/      Cloudflare Workers adapter for cloud-mode Bridge (not yet built)
+  bridge-worker/      Cloudflare Workers adapter for cloud-mode Bridge
   bridge-runner/      Node.js CLI/daemon adapter for private-mode Bridge (not yet built)
-  connector-jira/       (not yet built)
-  connector-github/     (not yet built)
+  connector-jira/       Jira Cloud connector
+  connector-github/     GitHub Issues connector
+  connector-azure-devops/ Azure DevOps Services connector
 docs/
   architecture/        system map and durable decisions
-  specs/               current-state contracts (empty until Phase 1 ships)
-  plans/                proposed, unshipped work
+  specs/               current-state contracts
+  plans/                active implementation and validation work
   processes/            maintenance conventions
 ```

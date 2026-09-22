@@ -1,7 +1,7 @@
 # 03 — connector-jira
 
 **Status:** in progress — implementation and local tests exist; live validation and extension parity remain open
-**Depends on:** [bridge-core contract](../specs/bridge-core-contract.md), [02-bridge-worker.md](02-bridge-worker.md)
+**Depends on:** [bridge-core contract](../specs/bridge-core-contract.md), [bridge-worker contract](../specs/bridge-worker.md)
 **Related:** [06-retire-extension-direct-transport.md](06-retire-extension-direct-transport.md), [chrome-extension `docs/specs/issue-tracker-integration.md`](../../../chrome-extension/docs/specs/issue-tracker-integration.md)
 
 ## Why

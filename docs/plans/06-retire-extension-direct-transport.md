@@ -1,7 +1,7 @@
 # 06 — Retire the extension's `direct` transport for Jira/GitHub
 
 **Status:** 06a done (2026-09-21, uncommitted) — 06b not started
-**Depends on:** [bridge-core contract](../specs/bridge-core-contract.md), [02-bridge-worker.md](02-bridge-worker.md), [03-connector-jira.md](03-connector-jira.md)
+**Depends on:** [bridge-core contract](../specs/bridge-core-contract.md), [bridge-worker contract](../specs/bridge-worker.md), [03-connector-jira.md](03-connector-jira.md)
 **Superseded in part by:** [07-report-envelope-and-versioning.md](07-report-envelope-and-versioning.md) — the contract 06b switches to is the narrow issue contract, not field-level commands; 07 is accepted, so 06b targets an HTTP Bridge client sending text commands and attachment uploads, not `Connector` wiring; 06a's `Connector` adapters stay only as the transitional `direct` path.
 **Related:** [chrome-extension plan — "Decision", "Delivery phases"](../../../chrome-extension/docs/plans/integration-connector-gateway.md), [chrome-extension `docs/specs/issue-tracker-integration.md`](../../../chrome-extension/docs/specs/issue-tracker-integration.md)
 

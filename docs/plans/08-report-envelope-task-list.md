@@ -76,7 +76,8 @@ design was dropped (07, "History"). What survives and what does not:
   - Update `docs/specs/bridge-core-contract.md` and the deployment runbook
     to the narrow contract and the three routes.
   - Confirm `IssueSummary` carries no raw description or attachment list.
-  - Correct stale notes in `02-bridge-worker.md`.
+  - Archive completed Worker implementation notes into
+    `docs/specs/bridge-worker.md`.
   - Retire the old field-level `IntegrationCommand` if anything still uses it.
   - Done: `attachmentSignal`, `IntegrationResult.attachments` and
     `IssueSummary.description` removed; the worker has a single deadline.

@@ -32,10 +32,11 @@ implementation status and remaining work.
 | Package                     | Runtime                                      | Status                                                                                                                      |
 | --------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `packages/bridge-core`      | Portable (`fetch`/`Request`/`Response` only) | Envelope v1, `ConnectorCommand`, `Connector`, `ConnectorCapabilities`, description formatters (`packages/bridge-core/src/`) |
-| `packages/bridge-worker`    | Cloudflare Workers                           | Not started                                                                                                                 |
+| `packages/bridge-worker`    | Cloudflare Workers                           | Implemented; local CP + Worker + GitHub E2E passed                |
 | `packages/bridge-runner`    | Node.js                                      | Not started                                                                                                                 |
-| `packages/connector-jira`   | —                                            | Not started                                                                                                                 |
+| `packages/connector-jira`   | —                                            | Implemented; local tests exist, live validation and extension parity remain open |
 | `packages/connector-github` | Cloudflare Workers                           | GitHub Issues connector: Markdown issues, reads, Contents API attachments, and `/user` credential validation              |
+| `packages/connector-azure-devops` | Cloudflare Workers                      | Implemented; local tests exist, live Azure DevOps validation remains open |
 
 ## Cross-repo dependencies
 

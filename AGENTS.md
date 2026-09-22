@@ -30,13 +30,13 @@ that customer's own network/VPN.
 
 ## Status
 
-Repository scaffold only. `packages/bridge-core` holds a first draft of the
-command/connector contract (envelope v1, `ConnectorCommand`, `Connector`,
-`ConnectorCapabilities`). None of `bridge-worker`, `bridge-runner`,
-`connector-jira`, `connector-github`, or any Log Source connector exist yet
-— see the "Portable implementation shape" section of the linked plan for
-the target package tree, and
-[`docs/plans/`](docs/plans/README.md) for active implementation work.
+Cloud-mode Bridge is implemented: `bridge-core`, `bridge-worker`, and Jira,
+GitHub Issues, and Azure DevOps connector packages exist. The cloud Worker
+and GitHub path have passed local end-to-end validation; Jira and Azure
+DevOps live validation and extension cutover remain in progress. Private-mode
+`bridge-runner` and Log Source connectors have not been built. See
+[`docs/plans/`](docs/plans/README.md) for current work and
+[`docs/specs/`](docs/specs/README.md) for shipped contracts.
 
 ## Role in the ecosystem
 
@@ -58,8 +58,7 @@ store raw captures or copies of tracker issues — see the linked plan's
 - TypeScript (strict mode, ES2022 target), npm workspaces monorepo
 - `packages/bridge-core`: portable Web APIs only (`fetch`, `Request`,
   `Response`) — no Workers bindings, no Node `fs`
-- `packages/bridge-worker` (not yet built): Cloudflare Worker adapter for
-  `cloud`-mode Bridge
+- `packages/bridge-worker`: Cloudflare Worker adapter for `cloud`-mode Bridge
 - `packages/bridge-runner` (not yet built): Node.js CLI/daemon adapter for
   `private`-mode Bridge (customer-network deployment). "Runner" here is a
   generic implementation-adapter label, parallel to "worker" for the
@@ -70,9 +69,13 @@ store raw captures or copies of tracker issues — see the linked plan's
 
 ## Module map
 
-| Path                    | Responsibility                                                                                                       |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `packages/bridge-core/` | Command/result types, `Connector` interface, (future) validation and routing — the only package with real code today |
+| Path                              | Responsibility                                                    |
+| --------------------------------- | ----------------------------------------------------------------- |
+| `packages/bridge-core/`           | Wire contract, connector interfaces, validation, and conformance |
+| `packages/bridge-worker/`         | Cloud-mode HTTP Worker and Control Plane integration             |
+| `packages/connector-jira/`        | Jira Cloud connector                                               |
+| `packages/connector-github/`      | GitHub Issues connector                                            |
+| `packages/connector-azure-devops/`| Azure DevOps Services connector                                    |
 
 ## Where to look next
 

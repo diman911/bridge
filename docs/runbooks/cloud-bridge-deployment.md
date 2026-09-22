@@ -64,9 +64,10 @@ seconds; set `request_timeout_seconds` on registration, or use `PATCH
 
 Cloud-mode command handling uses the Control Plane Service Binding. It does not register or send heartbeats.
 
-The public API accepts only `POST /v1/commands`, `POST /v1/reads` and
-`POST /v1/attachments` with a Bearer identity token. The `protocolVersion` in the
-body (or in the attachment `meta` part) must be `1`.
+The public API accepts `POST /v1/commands`, `POST /v1/reads`,
+`POST /v1/attachments`, and `POST /v1/credentials/check`, all with a Bearer
+identity token. The `protocolVersion` in JSON bodies (or in the attachment
+`meta` part) must be `1`.
 Attachment requests also require `X-Fairlead-Project-Id` and
 `X-Fairlead-Integration-Instance-Id`; Bridge resolves these before reading the
 multipart body.
