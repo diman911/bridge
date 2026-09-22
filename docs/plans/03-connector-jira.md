@@ -1,6 +1,6 @@
 # 03 — connector-jira
 
-**Status:** in progress — implementation and local tests exist; live validation and extension parity remain open
+**Status:** closed — shipped contract is documented in [bridge-core contract](../specs/bridge-core-contract.md)
 **Depends on:** [bridge-core contract](../specs/bridge-core-contract.md), [bridge-worker contract](../specs/bridge-worker.md)
 **Related:** [06-retire-extension-direct-transport.md](06-retire-extension-direct-transport.md), [chrome-extension `docs/specs/issue-tracker-integration.md`](../../../chrome-extension/docs/specs/issue-tracker-integration.md)
 
@@ -49,9 +49,10 @@ in the extension and should be reused, not reinvented.
 
 - [x] Create/update map descriptions to Jira Cloud ADF. The paragraph and
       line-break mapping is checked in `packages/connector-jira/src/index.test.ts`.
-- [ ] Confirm ADF parity with the former extension `jira-client.ts` using
-      recorded fixtures or a real Jira Cloud sandbox. The mapping test alone
-      does not establish parity with the former client.
+- [x] Confirm ADF mapping parity with the former extension `jira-client.ts`.
+      Compared `toAdf()` with the pre-cutover source in the extension repo's
+      git history; paragraph splitting, line-break handling, empty paragraphs,
+      and document shape match. Live Jira Cloud create/update also passed.
 - [x] Attachment upload uses Jira's native `/rest/api/3/issue/{id}/attachments`
       endpoint. `attach()` returns a per-file result; `/v1/attachments` is a
       separate request after issue mutation, so upload failure cannot undo
@@ -64,6 +65,7 @@ in the extension and should be reused, not reinvented.
       invokes the connector's `checkCredential()`.
 - [x] `bridge-core` conformance tests are registered against this
       connector's `execute()` in `packages/connector-jira/src/index.test.ts`.
-- [ ] Run the credential-gated Jira Cloud connector E2E suite and confirm
+- [x] Run the credential-gated Jira Cloud connector E2E suite and confirm
       create/update, reads, attachment replacement and credential checks
-      against a dedicated test project.
+      against a dedicated test project. `npm run test:e2e:jira:connector`
+      passed (6 tests).

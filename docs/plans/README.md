@@ -5,7 +5,6 @@ tracks the current implementation work.
 
 | Plan | Scope | Status |
 | --- | --- | --- |
-| [03 — connector-jira](03-connector-jira.md) | Jira connector implementation and live validation | In progress |
 | [05 — connector-azure-devops](05-connector-azure-devops.md) | Azure DevOps connector and live validation | In progress |
 | [06 — retire extension direct transport](06-retire-extension-direct-transport.md) | Extension cutover from direct tracker calls to Bridge | 06a done; 06b not started |
 | [07 — narrow issue contract and versioning](07-report-envelope-and-versioning.md) | Accepted wire-contract design | Accepted; implementation tracked in 08 |
