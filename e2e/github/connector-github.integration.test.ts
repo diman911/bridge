@@ -140,7 +140,7 @@ suite('GitHub connector → real GitHub API', () => {
     );
   });
 
-  it('creates a branch, uploads an attachment, replaces it, and deduplicates its comment', async () => {
+  it('creates a branch, replaces a file, and places file and image links in the issue body', async () => {
     connector = new GithubConnector({
       token: token!,
       owner: owner!,
@@ -166,13 +166,38 @@ suite('GitHub connector → real GitHub API', () => {
       }),
     ).resolves.toMatchObject({ filename: attachmentFilename, ok: true });
 
-    const comments = await githubJson<{ body?: string | null }[]>(
-      `/issues/${issueNumber}/comments?per_page=100`,
+    const screenshotFilename = `screenshot-${crypto.randomUUID()}.png`;
+    const png = Uint8Array.from(
+      atob(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lXcAAAAASUVORK5CYII=',
+      ),
+      (character) => character.charCodeAt(0),
     );
-    const matchingComments = comments.filter((comment) =>
-      comment.body?.includes(`- [${attachmentFilename}]`),
+    await expect(
+      connector.attach!(
+        {
+          protocolVersion: 1,
+          issueId: issueNumber,
+          filename: screenshotFilename,
+          contentType: 'image/png',
+          data: new Blob([png]).stream(),
+          limitState: { exceeded: false, actualBytes: png.length },
+        },
+        { signal: new AbortController().signal },
+      ),
+    ).resolves.toMatchObject({ filename: screenshotFilename, ok: true });
+
+    const issue = await githubJson<{ body: string }>(`/issues/${issueNumber}`);
+    expect(issue.body).toContain('Updated by the direct GitHub connector integration suite.');
+    expect(issue.body.match(new RegExp(`\\[${attachmentFilename}\\]`, 'g'))).toHaveLength(1);
+    expect(issue.body).toContain(
+      `https://github.com/${owner}/${repo}/raw/${attachmentBranch}/attachments/${issueNumber}/${attachmentFilename}`,
     );
-    expect(matchingComments).toHaveLength(1);
+    expect(issue.body).toContain(
+      `![${screenshotFilename}](https://github.com/${owner}/${repo}/raw/${attachmentBranch}/attachments/${issueNumber}/${screenshotFilename})`,
+    );
+    const comments = await githubJson<unknown[]>(`/issues/${issueNumber}/comments`);
+    expect(comments).toHaveLength(0);
 
     const file = await githubJson<{ content: string }>(
       `/contents/attachments/${encodeURIComponent(issueNumber)}/${encodeURIComponent(attachmentFilename)}?ref=${encodeURIComponent(attachmentBranch)}`,

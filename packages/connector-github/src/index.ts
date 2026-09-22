@@ -25,6 +25,35 @@ function base64(bytes: Uint8Array): string {
     text += String.fromCharCode(...bytes.subarray(start, start + 0x8000));
   return btoa(text);
 }
+function rawFileUrl(htmlUrl: string): string {
+  // GitHub's Contents API returns a /blob/ page URL. The former extension
+  // linked to /raw/ so screenshots render directly in issue Markdown.
+  const url = new URL(htmlUrl);
+  if (!url.pathname.includes('/blob/')) throw new Error('missing GitHub blob URL');
+  url.pathname = url.pathname.replace('/blob/', '/raw/');
+  return url.toString();
+}
+function markdownLabel(filename: string): string {
+  return filename.replace(/[\\[\]]/g, '\\$&');
+}
+const ATTACHMENTS_START = '<!-- fairlead-bridge-attachments:start -->';
+const ATTACHMENTS_END = '<!-- fairlead-bridge-attachments:end -->';
+
+function withAttachment(body: string, filename: string, reference: string): string {
+  const marker = `<!-- fairlead-attachment:${encodeURIComponent(filename)} -->`;
+  const entry = `- ${reference} ${marker}`;
+  const start = body.indexOf(ATTACHMENTS_START);
+  const end = body.indexOf(ATTACHMENTS_END);
+  if (start < 0 && end < 0)
+    return `${body.trimEnd()}\n\n${ATTACHMENTS_START}\n### Attachments\n${entry}\n${ATTACHMENTS_END}`.trimStart();
+  if (start < 0 || end < start) throw new Error('malformed Fairlead attachments section');
+  const section = body.slice(start, end);
+  const lines = section.split('\n');
+  const existing = lines.findIndex((line) => line.endsWith(marker));
+  if (existing >= 0) lines[existing] = entry;
+  else lines.splice(lines[lines.length - 1] === '' ? -1 : lines.length, 0, entry);
+  return body.slice(0, start) + lines.join('\n') + body.slice(end);
+}
 export class GithubConnector implements Connector {
   readonly capabilities: ConnectorCapabilities = {
     protocolVersion: PROTOCOL_VERSION,
@@ -164,29 +193,27 @@ export class GithubConnector implements Connector {
         signal: options.signal,
       });
       if (!upload.ok) return fail('attachment_upload_failed', String(upload.status));
-      const link = ((await upload.json()) as { content: { html_url: string } }).content.html_url;
-      const commentBody = `### Attachments\n- [${attachment.filename}](${link})`;
-      const comments = await this.f(
-        this.path(`/issues/${encodeURIComponent(attachment.issueId)}/comments?per_page=100`),
-        { headers: this.h(), signal: options.signal },
-      );
-      if (comments.ok) {
-        const list = (await comments.json()) as { body?: string | null }[];
-        if (list.some((comment) => comment.body === commentBody))
-          return { filename: attachment.filename, ok: true };
-      }
-      const comment = await this.f(
-        this.path(`/issues/${encodeURIComponent(attachment.issueId)}/comments`),
-        {
-          method: 'POST',
-          headers: this.h(true),
-          body: JSON.stringify({ body: commentBody }),
-          signal: options.signal,
-        },
-      );
-      return comment.ok
+      const htmlUrl = ((await upload.json()) as { content: { html_url: string } }).content.html_url;
+      const link = rawFileUrl(htmlUrl);
+      const label = markdownLabel(attachment.filename);
+      const reference = attachment.contentType.startsWith('image/')
+        ? `![${label}](${link})`
+        : `[${label}](${link})`;
+      const issueUrl = this.path(`/issues/${encodeURIComponent(attachment.issueId)}`);
+      const issue = await this.f(issueUrl, { headers: this.h(), signal: options.signal });
+      if (!issue.ok) return fail('attachment_link_failed', String(issue.status));
+      const currentBody = ((await issue.json()) as { body?: string | null }).body ?? '';
+      const updatedBody = withAttachment(currentBody, attachment.filename, reference);
+      if (updatedBody === currentBody) return { filename: attachment.filename, ok: true };
+      const updated = await this.f(issueUrl, {
+        method: 'PATCH',
+        headers: this.h(true),
+        body: JSON.stringify({ body: updatedBody }),
+        signal: options.signal,
+      });
+      return updated.ok
         ? { filename: attachment.filename, ok: true }
-        : fail('attachment_link_failed', String(comment.status));
+        : fail('attachment_link_failed', String(updated.status));
     } catch {
       return attachment.limitState.exceeded
         ? fail('attachment_too_large', 'attachment exceeds limit')

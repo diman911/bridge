@@ -93,12 +93,17 @@ The multipart layout is strict, so a client cannot use `FormData` (a string part
 A file over `MAX_ATTACHMENT_BYTES` (5 MiB, interim until per-provider measurement) is
 answered with `413 attachment_too_large` (`limitBytes`, `actualBytes`).
 
-`Connector.attach(attachment, { signal })` replaces by `(issue, filename)`:
-upload the new file first, delete the old one second. A failed upload keeps the
-old file. A failed cleanup returns `ok: true` with a `previous_version_not_removed`
-warning; replacement is not atomic. Jira uses its native attachment API, Azure
-DevOps its attachments API linked to the work item, and GitHub commits the file
-to `connector.settings.attachments_branch`.
+`Connector.attach(attachment, { signal })` replaces by `(issue, filename)`.
+Jira and Azure DevOps upload the new file first, then remove the old one; a
+failed cleanup returns `ok: true` with a `previous_version_not_removed`
+warning. GitHub replaces the file by SHA through the Contents API, committing
+it to `connector.settings.attachments_branch` (default
+`fairlead-attachments`).
+The GitHub connector converts the Contents API `/blob/` URL to `/raw/` and
+places it in a managed section of the issue body, preserving the surrounding
+text. Images use Markdown image syntax for inline display; other files use
+links. Repeated uploads of the same filename replace the file by SHA and
+update that filename's entry in the body.
 
 ### Results
 

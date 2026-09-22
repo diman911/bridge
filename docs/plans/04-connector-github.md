@@ -1,6 +1,6 @@
 # 04 — connector-github
 
-**Status:** in progress — implementation and local tests exist; live validation and extension parity remain open
+**Status:** in progress — connector attachment flow verified against the former client and real GitHub; Worker E2E and credential-check wiring remain open
 **Depends on:** [01-stabilize-contract.md](01-stabilize-contract.md), [02-bridge-worker.md](02-bridge-worker.md)
 **Related:** [06-retire-extension-direct-transport.md](06-retire-extension-direct-transport.md), [chrome-extension `docs/specs/issue-tracker-integration.md`](../../../chrome-extension/docs/specs/issue-tracker-integration.md)
 
@@ -11,23 +11,23 @@ GitHub is the other tracker the extension already talks to directly today
 [03-connector-jira.md](03-connector-jira.md): a port of working behavior,
 not new design.
 
-## Current behavior to preserve (from `chrome-extension`'s `github-client.ts`)
+## Former extension behavior (from `github-client.ts` before cutover)
 
 - Markdown description body, not ADF/Wiki Markup.
 - Attachments have **no native binary-attachment API on GitHub Issues** —
-  today's extension commits screenshots to a dedicated branch in the same
+  the former extension committed screenshots to a dedicated branch in the same
   repo (`ensureGithubAttachmentsBranch()` + `uploadAttachmentToGithub()`,
   branch name `Profile.github.attachmentsBranch`, default
-  `fairlead-attachments`) via the Contents API, then links with a `/raw/`
-  URL. This is GitHub's actual "native attachment mechanism" for this
+  `fairlead-attachments`) via the Contents API, then linked with a `/raw/`
+  URL. Its submit flow appended screenshots as Markdown images to the issue
+  body. This is GitHub's actual "native attachment mechanism" for this
   connector, per the source plan's "Responsibility split" ("Bridge
   retrieves those files and attaches them using the connector's native
   attachment mechanism" — for GitHub that mechanism is the branch-commit
   path, not a literal upload endpoint, since none exists).
-- No distinct comment-vs-body concept — `add_comment` may not map onto
-  GitHub the same way it does for Jira; confirm during implementation
-  whether it's a no-op capability or maps to GitHub's actual issue-comment
-  API (which does exist, separate from the issue body).
+- The former submit flow edited the issue body after uploading files.
+  The connector now does the same after each separate attachment request,
+  preserving the current issue body and managing only its own section.
 
 ## Task
 
@@ -37,9 +37,10 @@ not new design.
 - `search`/`fetch` for the generic issue picker.
 - Attachment handling: `/v1/attachments` supplies one file per request after
   issue mutation. The connector commits it to the configured branch and
-  adds an issue comment with the file link unless that exact comment already
-  exists; it returns a per-file
-  `AttachmentResult`. A failed commit does not undo issue creation (task 07).
+  adds or replaces a `/raw/` link in a managed section of the issue body.
+  Images use Markdown image syntax so they render inline; other files use
+  a normal link. The result is a per-file `AttachmentResult`. A failed
+  commit or body update does not undo issue creation (task 07).
 - Credential-validity check: `GET /user` (source plan, "Protocol v1
   scope").
 - Capability manifest: `targets.issue` with actions `create`/`update`, reads
@@ -55,13 +56,14 @@ not new design.
       its fixtures or a real test repository.
 - [x] Attachments use the GitHub Contents API on a configurable branch,
       defaulting to `fairlead-attachments`; a repeat upload replaces the
-      file by SHA. The connector adds an issue comment with the file link
-      unless the identical comment exists. Covered by the connector code and
-      its unit test.
-- [ ] Confirm attachment parity with the former extension behavior,
-      including branch naming and link format. The current connector uses
-      an issue comment and the Contents API `html_url`; the original plan
-      describes a `/raw/` link, so parity is not established.
+      file by SHA. The connector adds or replaces its link in the issue body
+      while preserving the remaining text. Covered by the connector unit test.
+- [x] Attachment branch default, Contents API replacement by SHA, `/raw/`
+      link and inline image Markdown match the former extension's attachment
+      behavior. Verified against the former `github-client.ts` and
+      `github-client.integration.test.ts` in the extension's pre-cutover
+      revision (`1d39916^`), and by connector unit tests. The connector
+      updates the issue body after each separate attachment request.
 - [x] `checkCredential()` calls `GET /user`; the credential-gated GitHub
       connector suite checks this against the provider.
 - [ ] Wire credential validation into the profile/project-selection flow.
@@ -69,5 +71,9 @@ not new design.
       exposes no check route.
 - [x] `bridge-core` conformance tests are registered against this
       connector's `execute()` in `packages/connector-github/src/index.test.ts`.
-- [ ] Run the credential-gated GitHub connector and local CP + Worker E2E
-      suites against a dedicated repository.
+- [x] The revised credential-gated GitHub connector E2E passed against a
+      dedicated repository (2026-09-23): create/update, reads, attachment
+      replacement, `/raw/` links and inline screenshot Markdown in the issue
+      body, plus credential checks.
+- [ ] Run the local CP + Worker + GitHub E2E suite against a dedicated
+      repository.
