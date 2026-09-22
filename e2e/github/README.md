@@ -7,7 +7,7 @@ creates an issue in a dedicated GitHub repository.
 Set these variables before running it:
 
 ```text
-BRIDGE_E2E_GITHUB_TOKEN=<fine-grained PAT with Issues read/write access>
+BRIDGE_E2E_GITHUB_TOKEN=<fine-grained PAT with Issues and Contents read/write access>
 BRIDGE_E2E_GITHUB_OWNER=<GitHub owner>
 BRIDGE_E2E_GITHUB_REPO=<dedicated test repository>
 ```
@@ -15,6 +15,11 @@ BRIDGE_E2E_GITHUB_REPO=<dedicated test repository>
 The Control Plane checkout is expected at `../control-plane`. Override it with
 `CP_REPO_PATH` if necessary. The local D1 is reset before each run. The test
 closes the issue it creates during cleanup.
+
+The direct connector suite does not start Control Plane and can be run on its
+own with `npm run test:e2e:github:connector`. It exercises issue reads/writes
+and the GitHub Contents API attachment flow, so the token must also be allowed
+to read and write repository contents.
 
 The suite also sends an invalid token and a cryptographically valid but expired
 unified identity token. Both must be rejected with `401 invalid_token` by
