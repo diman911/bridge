@@ -1,8 +1,12 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "fairlead-bridge-cloud",
+  "name": "fairlead-bridge",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-21",
+  "account_id": "0bf9f7de1338bc8724fbc196cfab6769",
+  "observability": {
+    "enabled": true,
+  },
   "services": [
     {
       "binding": "CONTROL_PLANE",
@@ -10,4 +14,38 @@
       "entrypoint": "CpRpc",
     },
   ],
+  "env": {
+    "dev": {
+      "name": "fairlead-bridge-dev",
+      "services": [
+        {
+          "binding": "CONTROL_PLANE",
+          "service": "control-plane-dev",
+          "entrypoint": "CpRpc",
+        },
+      ],
+      "routes": [
+        {
+          "pattern": "dev.bridge.fairleadhq.com",
+          "custom_domain": true,
+        },
+      ],
+    },
+    "production": {
+      "name": "fairlead-bridge",
+      "services": [
+        {
+          "binding": "CONTROL_PLANE",
+          "service": "control-plane",
+          "entrypoint": "CpRpc",
+        },
+      ],
+      "routes": [
+        {
+          "pattern": "bridge.fairleadhq.com",
+          "custom_domain": true,
+        },
+      ],
+    },
+  },
 }

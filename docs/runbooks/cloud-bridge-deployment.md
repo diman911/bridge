@@ -1,5 +1,32 @@
 # Cloud Bridge deployment
 
+## Environments
+
+The cloud-mode Worker has two Wrangler environments:
+
+| Environment | Worker name | Public hostname | Control Plane Service Binding |
+| --- | --- | --- | --- |
+| `dev` | `fairlead-bridge-dev` | `https://dev.bridge.fairleadhq.com` | `control-plane-dev` |
+| `production` | `fairlead-bridge` | `https://bridge.fairleadhq.com` | `control-plane` |
+
+Deploy commands, when deployment is approved:
+
+```bash
+npm run deploy:dev --workspace @fairlead/bridge-worker
+npm run deploy:production --workspace @fairlead/bridge-worker
+```
+
+Deploy the matching Control Plane environment first so the `CpRpc` Service
+Binding target exists. Validate a configuration without deploying with:
+
+```bash
+npx wrangler deploy --env dev --dry-run
+npx wrangler deploy --env production --dry-run
+```
+
+The two environments use separate Control Plane workers and separate D1
+databases. Do not point the production Bridge binding at `control-plane-dev`.
+
 After deploying `bridge-worker` to its final HTTPS URL, a platform administrator must register the singleton cloud Bridge in Control Plane. Deployment does not create this row.
 
 ```http
