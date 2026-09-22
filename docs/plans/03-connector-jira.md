@@ -1,6 +1,6 @@
 # 03 — connector-jira
 
-**Status:** not started
+**Status:** in progress — implementation and local tests exist; live validation and extension parity remain open
 **Depends on:** [01-stabilize-contract.md](01-stabilize-contract.md), [02-bridge-worker.md](02-bridge-worker.md)
 **Related:** [06-retire-extension-direct-transport.md](06-retire-extension-direct-transport.md), [chrome-extension `docs/specs/issue-tracker-integration.md`](../../../chrome-extension/docs/specs/issue-tracker-integration.md)
 
@@ -32,13 +32,12 @@ in the extension and should be reused, not reinvented.
   fields) to Jira's ADF body format for Cloud.
 - `search`/`fetch` (the `ReadOperation` type from task 01) — needed by the
   extension's generic issue picker.
-- Attachment handling: resolve the short-lived Data Plane evidence
-  references from the command, retrieve the files, upload natively; report
-  per-file results into `IntegrationResult.attachments` (partial-success
-  decision, task 01) rather than failing the whole command on one bad file.
+- Attachment handling: `/v1/attachments` supplies one file per request after
+  issue mutation; upload natively and return a per-file `AttachmentResult`.
+  An upload failure does not change the preceding command result (task 07).
 - Credential-validity check: `GET /myself` (source plan, "Protocol v1
-  scope") — cheap, non-mutating, run at profile/project-selection
-  checkpoint through Bridge.
+  scope") — cheap and non-mutating. The connector implements the check;
+  profile/project-selection wiring is still open below.
 - Capability manifest: `targets.issue` with actions `create`/`update`, reads
   `fetch`/`search` and `attachments` —
   explicitly not `transition_issue`, `test_case`, etc. (reserved, not
@@ -48,13 +47,22 @@ in the extension and should be reused, not reinvented.
 
 ## Acceptance criteria
 
-- [ ] Create/update produce the same ADF body shape the extension's
-      `jira-client.ts` produces today, verified against a real Jira Cloud
-      sandbox or recorded fixtures from the existing integration tests
-      (`jira-client.integration.test.ts`).
-- [ ] Attachment upload uses the native attachments endpoint; a failed
-      attachment does not fail an otherwise-successful issue mutation.
-- [ ] `GET /myself` credential check implemented and wired to the
-      capability manifest.
-- [ ] Conformance tests from `bridge-core` (task 01) pass against this
-      connector's `execute()`.
+- [x] Create/update map descriptions to Jira Cloud ADF. The paragraph and
+      line-break mapping is checked in `packages/connector-jira/src/index.test.ts`.
+- [ ] Confirm ADF parity with the former extension `jira-client.ts` using
+      recorded fixtures or a real Jira Cloud sandbox. The mapping test alone
+      does not establish parity with the former client.
+- [x] Attachment upload uses Jira's native `/rest/api/3/issue/{id}/attachments`
+      endpoint. `attach()` returns a per-file result; `/v1/attachments` is a
+      separate request after issue mutation, so upload failure cannot undo
+      a successful create/update. Covered by the connector and Worker tests.
+- [x] `checkCredential()` calls `GET /rest/api/3/myself`; the real Jira
+      connector suite includes a credential check but is credential-gated.
+- [ ] Wire credential validation into the profile/project-selection flow.
+      The capability manifest declares issue actions, reads and attachments;
+      it has no credential-check field, and the Worker exposes no check route.
+- [x] `bridge-core` conformance tests are registered against this
+      connector's `execute()` in `packages/connector-jira/src/index.test.ts`.
+- [ ] Run the credential-gated Jira Cloud connector E2E suite and confirm
+      create/update, reads, attachment replacement and credential checks
+      against a dedicated test project.

@@ -1,6 +1,6 @@
 # 02 — bridge-worker: cloud-mode Bridge
 
-**Status:** in progress
+**Status:** in progress — local E2E execution with a real GitHub account remains to be confirmed
 **Depends on:** [01-stabilize-contract.md](01-stabilize-contract.md)
 **Amended by:** [07-report-envelope-and-versioning.md](07-report-envelope-and-versioning.md) — the worker exposes `POST /v1/commands`, `POST /v1/attachments` and `POST /v1/reads`, decodes versioned commands into an internal model, derives connector id, project context and caller from Control Plane and the verified token, and drops the `command.connectorId` cross-check. Apply on top of the task below.
 **Related:** [00-bootstrap.md](00-bootstrap.md), [chrome-extension plan — "Bridge", "Routing and configuration"](../../../chrome-extension/docs/plans/integration-connector-gateway.md), `control-plane` tasks [06](../../../control-plane/docs/plans/06-bridge-tables.md), [09](../../../control-plane/docs/plans/09-bridge-credential-resolution-endpoint.md)
@@ -68,12 +68,13 @@ none` command (source plan, "Generic integration contract") touches no
 - [x] `bridge-worker` rejects an invalid/expired token before dispatching
       to any connector — via `resolveBridgeCredential`'s built-in
       verification, one round trip, not a separate check. Covered by the
-      local CP + Worker E2E suite through the real `CONTROL_PLANE` Service
-      Binding for both malformed and cryptographically signed expired tokens.
+      assertions in `e2e/github/bridge-github.test.ts` through the real
+      `CONTROL_PLANE` Service Binding for both malformed and
+      cryptographically signed expired tokens; live execution is tracked below.
 - [x] A command's credential + config resolution is that same one round
       trip to Control Plane, keyed by `project_id` + `integration_instance_id`.
-      Covered by the local CP + Worker E2E command flow through the real
-      `CONTROL_PLANE` Service Binding.
+      The local CP + Worker E2E command flow asserts this through the real
+      `CONTROL_PLANE` Service Binding; live execution is tracked below.
 - [x] Request timeout is read from routing/config data, defaults to 15s. CP
       returns the singleton cloud Bridge's `request_timeout_seconds`; Worker
       validates it and falls back to 15 seconds when absent or invalid.
@@ -81,8 +82,17 @@ none` command (source plan, "Generic integration contract") touches no
       only — no provider-specific branching in `bridge-worker` itself.
       Production connectors are registered as `ConnectorFactory` instances and
       the Worker dispatches through the shared interface.
-- [ ] `wrangler dev --local` runs the worker locally against a stubbed
-      Control Plane.
+- [x] The local E2E scenario starts `bridge-worker` with
+      `wrangler dev --local` and a local Control Plane, and routes credential resolution
+      through the real `CONTROL_PLANE` Service Binding. See
+      `e2e/github/fixtures.ts` and `e2e/github/bridge-github.test.ts`.
+      A separate stubbed-Control-Plane check is not required: the local
+      Control Plane exercises the actual RPC and token verification path.
+- [ ] Run the credential-gated local CP + Worker + GitHub E2E suite against
+      a dedicated GitHub repository and record a passing result. The suite
+      skips when `BRIDGE_E2E_GITHUB_TOKEN`, `BRIDGE_E2E_GITHUB_OWNER`, or
+      `BRIDGE_E2E_GITHUB_REPO` is absent; its presence alone does not prove
+      a completed live run.
 - [x] A deploy runbook note exists covering the one-time
       `POST /internal/platform/bridges` (`mode: 'cloud'`) registration
       step — not left as tribal knowledge. See

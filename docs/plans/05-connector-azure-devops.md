@@ -1,6 +1,6 @@
 # 05 — connector-azure-devops
 
-**Status:** not started
+**Status:** in progress — implementation and local tests exist; live Azure DevOps validation remains open
 **Depends on:** [01-stabilize-contract.md](01-stabilize-contract.md), [02-bridge-worker.md](02-bridge-worker.md), `control-plane` task 17 (Azure DevOps catalog entry + connect flow — see `control-plane/docs/plans/17-azure-devops-catalog-and-connect-flow.md`)
 **Related:** [chrome-extension plan — "Protocol v1 scope"](../../../chrome-extension/docs/plans/integration-connector-gateway.md)
 
@@ -37,10 +37,8 @@ Server (on-prem) is out of scope for this stage — it would need
   Azure DevOps's own validation error back through the command result;
   this connector does not attempt to guess or backfill a value.
 - **Standard fields only:** `title` → `System.Title`, `description` →
-  `System.Description` (or `Microsoft.VSTS.TCM.ReproSteps`, depending on
-  the work item type's field layout for `Bug` — confirm against the
-  target process template during implementation, since this varies between
-  Agile/Scrum/CMMI templates).
+  `System.Description`. The code chooses this field; confirm that it is
+  suitable for the target process template in a real test organization.
 
 ## Task
 
@@ -54,8 +52,8 @@ https://dev.azure.com/{organization}/{project}/_apis/wit/workitems/$Bug`
   `GET .../_apis/wit/workitems/{id}` respectively.
 - Attachment handling: Azure DevOps has a native attachment API
   (`POST .../_apis/wit/attachments`, then link via a JSON Patch
-  `AttachedFile` relation) — use it, not a workaround. Report per-file
-  results into `IntegrationResult.attachments`.
+  `AttachedFile` relation) — use it, not a workaround. Return a per-file
+  `AttachmentResult` from the separate `/v1/attachments` request (task 07).
 - Credential-validity check: `GET
 https://dev.azure.com/{organization}/_apis/projects?$top=1` with
   `redirect: 'manual'`, requiring a `200` JSON response. This validates the
@@ -70,24 +68,36 @@ https://dev.azure.com/{organization}/_apis/projects?$top=1` with
 - Capability manifest: `targets.issue` with actions `create`/`update`, reads
   `fetch`/`search` and `attachments`.
 
-## Open implementation question
+## Open validation question
 
-Whether `description` maps to `System.Description` or
-`Microsoft.VSTS.TCM.ReproSteps` (or both) for a `Bug` work item depends on
-the org's process template (Agile/Scrum/Basic/CMMI each lay these out
-differently). Decide during implementation against a real Azure DevOps
-Services test org — not assumable from the API docs alone.
+The implementation maps `description` to `System.Description`. Confirm
+against a real Azure DevOps Services test organization whether this field
+meets the `Bug` layout of its process template, or whether
+`Microsoft.VSTS.TCM.ReproSteps` is also needed.
 
 ## Acceptance criteria
 
-- [ ] Create/update produce a valid `Bug` work item against a real Azure
-      DevOps Services test organization, with no Area/Iteration Path set,
-      relying on the org's process-template defaults.
+- [x] Create/update use the `Bug` Work Items endpoint and patch
+      `System.Title` and `System.Description` without setting
+      Area/Iteration Path. Covered by
+      `packages/connector-azure-devops/src/index.test.ts`.
+- [ ] Confirm create/update against a real Azure DevOps Services test
+      organization with its process-template defaults and validate the
+      chosen description field.
 - [ ] A project whose process template requires Area/Iteration Path with
       no default surfaces that as a clear error in `IntegrationResult`,
       not a silent failure or a thrown exception.
-- [ ] Native attachment upload works and reports per-file results.
-- [ ] Credential-validity check works against both an OAuth-issued token
-      and a pasted PAT.
-- [ ] Conformance tests from `bridge-core` (task 01) pass against this
-      connector's `execute()`.
+- [x] Native attachment upload calls the Azure DevOps attachment endpoint,
+      adds an `AttachedFile` relation and returns a per-file result. The
+      replacement path is covered by the connector unit test.
+- [ ] Confirm native attachment upload and replacement against a real
+      Azure DevOps Services test organization.
+- [x] `checkCredential()` requests the project list with
+      `redirect: 'manual'` and accepts only a `200` JSON response. Unit tests cover
+      valid, invalid and redirected responses and PAT/OAuth auth headers.
+- [ ] Confirm credential checks with a real Entra ID OAuth token and a
+      pasted PAT. Both E2E suites require provider credentials and skip
+      when those are absent.
+- [x] `bridge-core` conformance tests are registered against this
+      connector's `execute()` in
+      `packages/connector-azure-devops/src/index.test.ts`.
