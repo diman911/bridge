@@ -30,3 +30,13 @@ It is skipped when those values are absent. Run it with:
 ```bash
 npm run test:e2e:jira:oauth
 ```
+
+## Optional scoped API-token suite
+
+Set `BRIDGE_E2E_JIRA_SCOPED_TOKEN` and `BRIDGE_E2E_JIRA_SCOPED_CLOUD_ID`
+(plus the shared Jira email and project key) to exercise the scoped API-token
+gateway path. Run it with:
+
+```bash
+npm run test:e2e:jira:scoped
+```
