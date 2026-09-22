@@ -70,15 +70,20 @@ none` command (source plan, "Generic integration contract") touches no
       verification, one round trip, not a separate check. Covered by the
       local CP + Worker E2E suite through the real `CONTROL_PLANE` Service
       Binding for both malformed and cryptographically signed expired tokens.
-- [ ] A command's credential + config resolution is that same one round
+- [x] A command's credential + config resolution is that same one round
       trip to Control Plane, keyed by `project_id` + `integration_instance_id`.
+      Covered by the local CP + Worker E2E command flow through the real
+      `CONTROL_PLANE` Service Binding.
 - [x] Request timeout is read from routing/config data, defaults to 15s. CP
       returns the singleton cloud Bridge's `request_timeout_seconds`; Worker
       validates it and falls back to 15 seconds when absent or invalid.
-- [ ] Connector dispatch goes through `bridge-core`'s `Connector` interface
+- [x] Connector dispatch goes through `bridge-core`'s `Connector` interface
       only — no provider-specific branching in `bridge-worker` itself.
+      Production connectors are registered as `ConnectorFactory` instances and
+      the Worker dispatches through the shared interface.
 - [ ] `wrangler dev --local` runs the worker locally against a stubbed
       Control Plane.
-- [ ] A deploy runbook note exists covering the one-time
+- [x] A deploy runbook note exists covering the one-time
       `POST /internal/platform/bridges` (`mode: 'cloud'`) registration
-      step — not left as tribal knowledge.
+      step — not left as tribal knowledge. See
+      `docs/runbooks/cloud-bridge-deployment.md`.
