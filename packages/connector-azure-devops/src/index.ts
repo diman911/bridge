@@ -22,6 +22,7 @@ function toHtml(description: string): string {
     )
     .join('');
 }
+
 export interface AzureDevOpsConnectorConfig {
   token: string;
   organization: string;
@@ -44,11 +45,15 @@ export class AzureDevOpsConnector implements Connector {
   };
   private readonly f: typeof fetch;
   private readonly base: string;
+  private readonly organizationBase: string;
   constructor(private readonly c: AzureDevOpsConnectorConfig) {
     this.f = c.fetch ?? fetch;
-    this.base = `https://dev.azure.com/${encodeURIComponent(c.organization)}/${encodeURIComponent(c.project)}`;
+    this.organizationBase = `https://dev.azure.com/${encodeURIComponent(c.organization)}`;
+    this.base = `${this.organizationBase}/${encodeURIComponent(c.project)}`;
   }
   private auth() {
+    // Azure DevOps PATs use HTTP Basic with an empty username. OAuth access
+    // tokens use Bearer; Control Plane resolves which credential is in use.
     return this.c.authType === 'api_token'
       ? `Basic ${btoa(`:${this.c.token}`)}`
       : `Bearer ${this.c.token}`;
@@ -64,12 +69,17 @@ export class AzureDevOpsConnector implements Connector {
     return `${this.base}/_workitems/edit/${encodeURIComponent(String(id))}`;
   }
   async checkCredential(signal?: AbortSignal) {
-    return (
-      await this.f('https://app.vssps.visualstudio.com/_apis/profile/profiles/me?api-version=7.1', {
-        headers: { Authorization: this.auth() },
+    const response = await this.f(
+      `${this.organizationBase}/_apis/projects?$top=1&api-version=7.1`,
+      {
+        headers: { Authorization: this.auth(), Accept: 'application/json' },
+        redirect: 'manual',
         signal,
-      })
-    ).ok;
+      },
+    );
+    return (
+      response.status === 200 && response.headers.get('content-type')?.includes('application/json')
+    );
   }
   async execute(c: ConnectorCommand, o: ConnectorExecutionOptions): Promise<IntegrationResult> {
     const fail = (code: string, message: string): IntegrationResult => ({
@@ -82,7 +92,6 @@ export class AzureDevOpsConnector implements Connector {
       : `${this.base}/_apis/wit/workitems/${encodeURIComponent(c.issueId)}?api-version=7.1`;
     const op = create ? 'add' : 'replace';
     const patch = [
-      ...(create ? [{ op: 'add', path: '/fields/System.WorkItemType', value: 'Bug' }] : []),
       ...(c.subject === undefined ? [] : [{ op, path: '/fields/System.Title', value: c.subject }]),
       ...(c.description === undefined
         ? []
@@ -135,14 +144,17 @@ export class AzureDevOpsConnector implements Connector {
             (relation.attributes?.name === attachment.filename ||
               relation.attributes?.comment === attachment.filename),
         );
+      const uploadInit: RequestInit & { duplex: 'half' } = {
+        method: 'POST',
+        headers: { Authorization: this.auth(), 'Content-Type': 'application/octet-stream' },
+        body: attachment.data,
+        signal: options.signal,
+        // Node's fetch requires this flag for a ReadableStream request body.
+        duplex: 'half',
+      };
       const upload = await this.f(
         `${this.base}/_apis/wit/attachments?fileName=${encodeURIComponent(attachment.filename)}&api-version=7.1`,
-        {
-          method: 'POST',
-          headers: { Authorization: this.auth(), 'Content-Type': 'application/octet-stream' },
-          body: attachment.data,
-          signal: options.signal,
-        },
+        uploadInit,
       );
       if (!upload.ok) return fail('attachment_upload_failed', String(upload.status));
       const uploadedUrl = ((await upload.json()) as { url: string }).url;

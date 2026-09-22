@@ -57,8 +57,11 @@ https://dev.azure.com/{organization}/{project}/_apis/wit/workitems/$Bug`
   `AttachedFile` relation) — use it, not a workaround. Report per-file
   results into `IntegrationResult.attachments`.
 - Credential-validity check: `GET
-https://app.vssps.visualstudio.com/_apis/profile/profiles/me` — the
-  standard Azure DevOps "who am I" call, works for both OAuth and PAT.
+https://dev.azure.com/{organization}/_apis/projects?$top=1` with
+  `redirect: 'manual'`, requiring a `200` JSON response. This validates the
+  minimum Project-and-Team-read access the connector needs; the profile API
+  requires an additional Profile scope for PATs and can return a sign-in HTML
+  page for an invalid credential.
 - OAuth flow specifics (Entra ID app registration, redirect URI, API
   permission/scope) are a `control-plane` concern (task 17) — this
   connector consumes a resolved bearer credential from Bridge, it does

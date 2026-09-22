@@ -34,11 +34,87 @@ describe('AzureDevOpsConnector', () => {
     expect(
       await connector.execute(command, { signal: new AbortController().signal }),
     ).toMatchObject({ ok: true });
-    expect(patch).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ path: '/fields/System.Title', value: 'Title' }),
-      ]),
+    expect(patch).toEqual([
+      { op: 'add', path: '/fields/System.Title', value: 'Title' },
+      { op: 'add', path: '/fields/System.Description', value: '' },
+    ]);
+  });
+
+  it('selects Bug from the create URL and does not patch Area or Iteration', async () => {
+    let url = '';
+    let patch: { path: string }[] = [];
+    const connector = new AzureDevOpsConnector({
+      organization: 'acme',
+      project: 'app',
+      token: 't',
+      fetch: (async (requestUrl: string, init?: RequestInit) => {
+        url = requestUrl;
+        patch = JSON.parse(String(init?.body));
+        return Response.json({ id: 12 });
+      }) as typeof fetch,
+    });
+
+    await connector.execute(
+      { protocolVersion: 1, type: 'create_issue', subject: 'Title', description: 'Description' },
+      { signal: new AbortController().signal },
     );
+
+    expect(url).toContain('/_apis/wit/workitems/$Bug?api-version=7.1');
+    expect(patch.map((operation) => operation.path)).not.toContain('/fields/System.WorkItemType');
+    expect(patch.map((operation) => operation.path)).not.toContain('/fields/System.AreaPath');
+    expect(patch.map((operation) => operation.path)).not.toContain('/fields/System.IterationPath');
+  });
+
+  it('uses Basic authentication for a PAT and Bearer authentication for OAuth', async () => {
+    const authorizations: string[] = [];
+    const makeConnector = (authType: 'api_token' | 'oauth') =>
+      new AzureDevOpsConnector({
+        organization: 'acme',
+        project: 'app',
+        token: 'token',
+        authType,
+        fetch: (async (_url: string, init?: RequestInit) => {
+          authorizations.push(new Headers(init?.headers).get('Authorization') ?? '');
+          return Response.json({ id: 12 });
+        }) as typeof fetch,
+      });
+
+    await makeConnector('api_token').execute(
+      { protocolVersion: 1, type: 'create_issue', subject: 'Title', description: 'Description' },
+      { signal: new AbortController().signal },
+    );
+    await makeConnector('oauth').execute(
+      { protocolVersion: 1, type: 'create_issue', subject: 'Title', description: 'Description' },
+      { signal: new AbortController().signal },
+    );
+
+    expect(authorizations).toEqual([`Basic ${btoa(':token')}`, 'Bearer token']);
+  });
+
+  it('recognizes only a JSON 200 project-list response as valid credentials', async () => {
+    const calls: RequestInit[] = [];
+    const connector = new AzureDevOpsConnector({
+      organization: 'acme',
+      project: 'app',
+      token: 't',
+      fetch: (async (_url: string, init?: RequestInit) => {
+        calls.push(init ?? {});
+        return new Response('{}', {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }) as typeof fetch,
+    });
+    await expect(connector.checkCredential()).resolves.toBe(true);
+    expect(calls[0]).toMatchObject({ redirect: 'manual' });
+
+    const redirected = new AzureDevOpsConnector({
+      organization: 'acme',
+      project: 'app',
+      token: 't',
+      fetch: (async () => new Response('', { status: 302 })) as typeof fetch,
+    });
+    await expect(redirected.checkCredential()).resolves.toBe(false);
   });
 
   it('uploads and links a replacement before deleting the previous blob', async () => {
