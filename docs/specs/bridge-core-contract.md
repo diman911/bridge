@@ -19,7 +19,7 @@ trusted routing fields). `SUPPORTED_PROTOCOL_VERSIONS` is the single
 compatible-version set used by `isCompatibleProtocolVersion()`. A version not in
 that set returns `error.code: 'unsupported_protocol_version'`, not an exception.
 The extension sends its own version and learns nothing about Bridge's supported
-versions in advance: every route (`/v1/commands`, `/v1/reads`, `/v1/attachments`)
+versions in advance: every route (`/v1/commands`, `/v1/reads`, `/v1/attachments`, `/v1/credentials/check`)
 answers an unknown `protocolVersion` with `400 unsupported_protocol_version`.
 
 `MAX_SUBJECT_LENGTH` and `MAX_DESCRIPTION_LENGTH` (32 768 characters each) are
@@ -43,8 +43,9 @@ test replays every request fixture in every stored version directory.
 | `POST /v1/commands`    | JSON `create_issue` / `update_issue`                 | `IntegrationResult` |
 | `POST /v1/reads`       | JSON search / fetch operation                        | `ReadResult`        |
 | `POST /v1/attachments` | `multipart/form-data`: `meta` JSON part + one `file` | `AttachmentResult`  |
+| `POST /v1/credentials/check` | JSON routing envelope (`protocolVersion`, `project_id`, `integration_instance_id`) | `{ valid: boolean }` |
 
-All three require a Bearer identity token.
+All routes require a Bearer identity token.
 
 ## Write path: `ConnectorCommand` → `IntegrationResult`
 

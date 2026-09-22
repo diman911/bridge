@@ -1,6 +1,6 @@
 # 04 — connector-github
 
-**Status:** in progress — connector attachment flow verified against the former client and real GitHub; Worker E2E and credential-check wiring remain open
+**Status:** complete — connector behavior, credential-check wiring, and local CP + Worker + GitHub E2E verified (2026-09-23)
 **Depends on:** [01-stabilize-contract.md](01-stabilize-contract.md), [02-bridge-worker.md](02-bridge-worker.md)
 **Related:** [06-retire-extension-direct-transport.md](06-retire-extension-direct-transport.md), [chrome-extension `docs/specs/issue-tracker-integration.md`](../../../chrome-extension/docs/specs/issue-tracker-integration.md)
 
@@ -52,7 +52,7 @@ not new design.
 - [x] Create/update send the supplied Markdown description as the GitHub
       issue body. `packages/connector-github/src/index.ts` and its unit test
       cover the direct field mapping.
-- [ ] Confirm body parity with the former extension `github-client.ts` using
+- [x] Confirm body parity with the former extension `github-client.ts` using
       its fixtures or a real test repository.
 - [x] Attachments use the GitHub Contents API on a configurable branch,
       defaulting to `fairlead-attachments`; a repeat upload replaces the
@@ -66,14 +66,15 @@ not new design.
       updates the issue body after each separate attachment request.
 - [x] `checkCredential()` calls `GET /user`; the credential-gated GitHub
       connector suite checks this against the provider.
-- [ ] Wire credential validation into the profile/project-selection flow.
-      The capability manifest has no credential-check field and the Worker
-      exposes no check route.
+- [x] Wire credential validation into the profile/project-selection flow.
+      The extension checks the selected integration through
+      `POST /v1/credentials/check`; the Worker resolves credentials via CP and
+      invokes the connector's `checkCredential()`.
 - [x] `bridge-core` conformance tests are registered against this
       connector's `execute()` in `packages/connector-github/src/index.test.ts`.
 - [x] The revised credential-gated GitHub connector E2E passed against a
       dedicated repository (2026-09-23): create/update, reads, attachment
       replacement, `/raw/` links and inline screenshot Markdown in the issue
       body, plus credential checks.
-- [ ] Run the local CP + Worker + GitHub E2E suite against a dedicated
+- [x] Run the local CP + Worker + GitHub E2E suite against a dedicated
       repository.

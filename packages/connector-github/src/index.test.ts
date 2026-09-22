@@ -40,6 +40,26 @@ describe('GithubConnector', () => {
     expect(body).toMatchObject({ title: 'Title' });
   });
 
+  it('matches the former extension body mapping: title and Markdown description are sent verbatim', async () => {
+    let request: { method?: string; body?: string } | undefined;
+    const connector = new GithubConnector({
+      owner: 'acme',
+      repo: 'app',
+      token: 't',
+      fetch: (async (_url: string, init?: RequestInit) => {
+        request = { method: init?.method, body: String(init?.body) };
+        return Response.json({ number: 12, html_url: 'https://github.com/acme/app/issues/12' });
+      }) as typeof fetch,
+    });
+    const markdown = '## Steps\n\n1. Reproduce\n\n```ts\nexpect(true).toBe(false)\n```';
+    await connector.execute(
+      { protocolVersion: 1, type: 'create_issue', subject: 'Parity', description: markdown },
+      { signal: new AbortController().signal },
+    );
+    expect(request?.method).toBe('POST');
+    expect(JSON.parse(request!.body!)).toEqual({ title: 'Parity', body: markdown });
+  });
+
   it('overwrites an attachment on the configured branch using its sha', async () => {
     const bodies: unknown[] = [];
     const connector = new GithubConnector({

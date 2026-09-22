@@ -283,7 +283,10 @@ export function createEnvelopeBridgeWorker(
       const path = new URL(request.url).pathname;
       if (
         request.method !== 'POST' ||
-        (path !== '/v1/commands' && path !== '/v1/reads' && path !== '/v1/attachments')
+        (path !== '/v1/commands' &&
+          path !== '/v1/reads' &&
+          path !== '/v1/attachments' &&
+          path !== '/v1/credentials/check')
       )
         return response({ error: 'not_found' }, 404);
       const bearer = token(request);
@@ -342,6 +345,34 @@ export function createEnvelopeBridgeWorker(
       }
       const payload = await body(request);
       if (isResponse(payload)) return payload;
+      if (path === '/v1/credentials/check') {
+        const routing = commandRouting(payload);
+        if (isResponse(routing)) return routing;
+        const credential = await resolve(
+          env.CONTROL_PLANE,
+          bearer,
+          routing.projectId,
+          routing.integrationInstanceId,
+        );
+        if (isResponse(credential)) return credential;
+        try {
+          return await executeWithinTimeout(requestTimeoutSeconds(credential), async (signal) => {
+            const connector = connectorFor(dependencies, credential, signal);
+            if (isResponse(connector)) return connector;
+            if (!connector.checkCredential)
+              return error(
+                'unsupported_credential_check',
+                'connector does not support credential checks',
+                422,
+              );
+            return response({ valid: await connector.checkCredential(signal) }, 200);
+          });
+        } catch (cause) {
+          return timedOut(cause)
+            ? error('request_timeout', 'credential check timed out', 504)
+            : error('credential_check_failed', 'credential check did not complete', 502);
+        }
+      }
       if (path === '/v1/commands') {
         const routing = commandRouting(payload);
         if (isResponse(routing)) return routing;

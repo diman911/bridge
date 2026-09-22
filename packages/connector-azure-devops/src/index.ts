@@ -85,7 +85,8 @@ export class AzureDevOpsConnector implements Connector {
       },
     );
     return (
-      response.status === 200 && response.headers.get('content-type')?.includes('application/json')
+      response.status === 200 &&
+      response.headers.get('content-type')?.includes('application/json') === true
     );
   }
   async execute(c: ConnectorCommand, o: ConnectorExecutionOptions): Promise<IntegrationResult> {

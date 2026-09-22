@@ -69,6 +69,37 @@ const attachmentRoutingHeaders = {
 };
 
 describe('v1 frozen contract fixtures', () => {
+  it('resolves the provider credential and runs the connector credential check', async () => {
+    const checked: AbortSignal[] = [];
+    const credentialConnector: Connector = {
+      ...connector,
+      checkCredential: async (signal) => {
+        checked.push(signal!);
+        return true;
+      },
+    };
+    const handler = createEnvelopeBridgeWorker({
+      connectors: new Map([['fixture', () => credentialConnector]]),
+    });
+    const response = await handler.fetch(
+      new Request('https://bridge.example.test/v1/credentials/check', {
+        method: 'POST',
+        headers: { authorization: 'Bearer fairlead-token', 'content-type': 'application/json' },
+        body: JSON.stringify({
+          protocolVersion: 1,
+          project_id: 'project-123',
+          integration_instance_id: 'tracker-456',
+        }),
+      }),
+      env,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ valid: true });
+    expect(checked).toHaveLength(1);
+    expect(checked[0]).toBeInstanceOf(AbortSignal);
+  });
+
   it('replays every v1 request fixture through the Worker', async () => {
     const files = (await readdir(contract)).filter((name) => /^request-.*\.json$/.test(name));
     for (const name of files) {

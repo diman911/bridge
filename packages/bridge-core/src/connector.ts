@@ -25,6 +25,8 @@ export type ConnectorAttachmentOptions = Pick<ConnectorExecutionOptions, 'signal
 /** Implemented per transport (direct in-extension, cloud-mode Bridge worker, private-mode Bridge runner). */
 export interface Connector {
   readonly capabilities: ConnectorCapabilities;
+  /** Validate the configured provider credential without performing an issue operation. */
+  checkCredential?(signal?: AbortSignal): Promise<boolean>;
   execute(
     command: ConnectorCommand,
     options: ConnectorExecutionOptions,

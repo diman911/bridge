@@ -29,6 +29,21 @@ describe.skipIf(!token || !owner || !repo)('e2e: local Bridge + local CP + real 
   }, 30_000);
 
   it('resolves config and credential through CP, then creates an issue in GitHub', async () => {
+    const check = await fetch(`${bridgeUrl}/v1/credentials/check`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${servers.seed.bridgeIdentityToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocolVersion: 1,
+        project_id: servers.seed.projectId,
+        integration_instance_id: servers.seed.githubIntegrationInstanceId,
+      }),
+    });
+    expect(check.status).toBe(200);
+    await expect(check.json()).resolves.toEqual({ valid: true });
+
     const suffix = crypto.randomUUID();
     const title = `Fairlead Bridge E2E ${suffix}`;
     const description = `Created by local Bridge E2E ${suffix}`;
