@@ -14,6 +14,161 @@ runConnectorConformanceTests(
 );
 
 describe('JiraConnector', () => {
+  it('requires cloudId for OAuth configuration', () => {
+    expect(
+      () =>
+        new JiraConnector({
+          baseUrl: 'https://example.atlassian.net',
+          projectKey: 'APP',
+          token: 'access-token',
+          authType: 'oauth',
+        }),
+    ).toThrow('Jira OAuth configuration requires cloudId');
+  });
+
+  it('sends every OAuth operation through the Atlassian API gateway with a Bearer token', async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    const connector = new JiraConnector({
+      // This is retained for human-facing browse links, but OAuth API calls
+      // must never be sent to the tenant URL.
+      baseUrl: 'https://example.atlassian.net',
+      cloudId: 'cloud id/with reserved chars',
+      projectKey: 'APP',
+      token: 'access-token',
+      authType: 'oauth',
+      email: 'must-not-be-used@example.test',
+      fetch: (async (url: string | URL | Request, init?: RequestInit) => {
+        const value = String(url);
+        calls.push({ url: value, init });
+        if (value.includes('/issue/picker')) return Response.json({ sections: [] });
+        if (value.includes('?fields=attachment,project')) {
+          return Response.json({
+            fields: { project: { key: 'APP' }, attachment: [{ id: 'old', filename: 'a.txt' }] },
+          });
+        }
+        if (value.includes('?fields=project'))
+          return Response.json({ fields: { project: { key: 'APP' } } });
+        if (value.includes('?fields=summary,status,project'))
+          return Response.json({
+            key: 'APP-1',
+            fields: { summary: 'Title', project: { key: 'APP' } },
+          });
+        if (init?.method === 'POST' && value.endsWith('/issue')) return Response.json({ key: 'APP-1' });
+        return new Response(null, { status: 204 });
+      }) as typeof fetch,
+    });
+    const signal = new AbortController().signal;
+
+    await connector.checkCredential(signal);
+    await connector.execute(
+      { protocolVersion: 1, type: 'create_issue', subject: 'Title', description: 'Description' },
+      { signal },
+    );
+    await connector.execute(
+      { protocolVersion: 1, type: 'update_issue', issueId: 'APP-1', subject: 'Updated' },
+      { signal },
+    );
+    await connector.read!({ type: 'fetch', connectorId: 'jira', id: 'APP-1' }, { signal });
+    await connector.read!({ type: 'search', connectorId: 'jira', query: 'Title' }, { signal });
+    await connector.attach!(
+      {
+        protocolVersion: 1,
+        issueId: 'APP-1',
+        filename: 'a.txt',
+        contentType: 'text/plain',
+        data: new Blob(['contents']).stream(),
+        limitState: { exceeded: false, actualBytes: 8 },
+      },
+      { signal },
+    );
+
+    const oauthBase = 'https://api.atlassian.com/ex/jira/cloud%20id%2Fwith%20reserved%20chars';
+    expect(calls).not.toHaveLength(0);
+    for (const call of calls) {
+      expect(call.url.startsWith(oauthBase)).toBe(true);
+      expect(call.url).not.toContain('example.atlassian.net');
+      expect(new Headers(call.init?.headers).get('authorization')).toBe('Bearer access-token');
+    }
+    expect(calls.map((call) => call.url)).toEqual(
+      expect.arrayContaining([
+        `${oauthBase}/rest/api/3/myself`,
+        `${oauthBase}/rest/api/3/issue`,
+        `${oauthBase}/rest/api/3/issue/APP-1?fields=project`,
+        `${oauthBase}/rest/api/3/issue/APP-1?fields=summary,status,project`,
+        `${oauthBase}/rest/api/3/issue/APP-1?fields=attachment,project`,
+        `${oauthBase}/rest/api/3/issue/APP-1/attachments`,
+        `${oauthBase}/rest/api/3/attachment/old`,
+      ]),
+    );
+  });
+
+  it('keeps direct Jira URL and Basic email:API-token authentication for API tokens', async () => {
+    let request: { url: string; authorization: string | null } | undefined;
+    const connector = new JiraConnector({
+      baseUrl: 'https://example.atlassian.net/',
+      cloudId: 'ignored-for-api-token',
+      projectKey: 'APP',
+      token: 'api-token',
+      email: 'person@example.test',
+      authType: 'api_token',
+      fetch: (async (url: string | URL | Request, init?: RequestInit) => {
+        request = { url: String(url), authorization: new Headers(init?.headers).get('authorization') };
+        return Response.json({});
+      }) as typeof fetch,
+    });
+
+    await expect(connector.checkCredential()).resolves.toBe(true);
+    expect(request).toEqual({
+      url: 'https://example.atlassian.net/rest/api/3/myself',
+      authorization: `Basic ${btoa('person@example.test:api-token')}`,
+    });
+  });
+
+  it('uses the API gateway and Basic authentication for a scoped API token', async () => {
+    let request: { url: string; authorization: string | null } | undefined;
+    const connector = new JiraConnector({
+      baseUrl: 'https://example.atlassian.net',
+      cloudId: 'cloud-1',
+      projectKey: 'APP',
+      token: 'scoped-token',
+      email: 'person@example.test',
+      authType: 'scoped_api_token',
+      fetch: (async (url: string | URL | Request, init?: RequestInit) => {
+        request = { url: String(url), authorization: new Headers(init?.headers).get('authorization') };
+        return Response.json({});
+      }) as typeof fetch,
+    });
+
+    await expect(connector.checkCredential()).resolves.toBe(true);
+    expect(request).toEqual({
+      url: 'https://api.atlassian.com/ex/jira/cloud-1/rest/api/3/myself',
+      authorization: `Basic ${btoa('person@example.test:scoped-token')}`,
+    });
+  });
+
+  it('requires a cloudId and email for a scoped API token', () => {
+    expect(
+      () =>
+        new JiraConnector({
+          baseUrl: 'https://example.atlassian.net',
+          projectKey: 'APP',
+          token: 'scoped-token',
+          authType: 'scoped_api_token',
+          email: 'person@example.test',
+        }),
+    ).toThrow('Jira scoped API token configuration requires cloudId');
+    expect(
+      () =>
+        new JiraConnector({
+          baseUrl: 'https://example.atlassian.net',
+          cloudId: 'cloud-1',
+          projectKey: 'APP',
+          token: 'scoped-token',
+          authType: 'scoped_api_token',
+        }),
+    ).toThrow('Jira scoped API token configuration requires email');
+  });
+
   it('maps paragraph and single-line breaks to Jira ADF', async () => {
     let body: { fields: { description: unknown } } | undefined;
     const connector = new JiraConnector({

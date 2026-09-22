@@ -8,7 +8,9 @@ export interface ResolvedBridgeCredential {
   credential: {
     token: string;
     metadata: Record<string, unknown> | null;
-    auth_type: 'oauth' | 'api_token';
+    auth_type: 'oauth' | 'api_token' | 'scoped_api_token';
+    /** Jira Cloud gateway target. Present for OAuth and scoped API-token credentials. */
+    cloud_id?: string;
   };
   connector: {
     catalog_type: string;
@@ -49,6 +51,13 @@ function required(value: string | null, field: string): string {
   if (!value) throw new Error(`missing trusted connector ${field}`);
   return value;
 }
+function nonJiraAuthType(authType: ResolvedBridgeCredential['credential']['auth_type']):
+  | 'oauth'
+  | 'api_token' {
+  if (authType === 'scoped_api_token')
+    throw new Error('scoped_api_token is only valid for the Jira Cloud connector');
+  return authType;
+}
 
 const productionConnectors = new Map<string, ConnectorFactory>([
   [
@@ -59,6 +68,7 @@ const productionConnectors = new Map<string, ConnectorFactory>([
         projectKey: required(context.connector.container_key, 'container_key'),
         token: context.credential.token,
         authType: context.credential.auth_type,
+        cloudId: context.credential.cloud_id,
         email:
           typeof context.credential.metadata?.email === 'string'
             ? context.credential.metadata.email
@@ -82,7 +92,7 @@ const productionConnectors = new Map<string, ConnectorFactory>([
         organization: required(context.connector.account_id, 'account_id'),
         project: required(context.connector.container_key, 'container_key'),
         token: context.credential.token,
-        authType: context.credential.auth_type,
+        authType: nonJiraAuthType(context.credential.auth_type),
       }),
   ],
 ]);

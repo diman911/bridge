@@ -30,9 +30,11 @@ function toAdf(description: string) {
 }
 export interface JiraConnectorConfig {
   baseUrl: string;
+  /** Atlassian cloud ID required by gateway-backed Jira credentials. */
+  cloudId?: string;
   token: string;
   projectKey: string;
-  authType?: 'oauth' | 'api_token';
+  authType?: 'oauth' | 'api_token' | 'scoped_api_token';
   email?: string;
   fetch?: typeof fetch;
 }
@@ -52,12 +54,19 @@ export class JiraConnector implements Connector {
   private base;
   private f;
   constructor(private c: JiraConnectorConfig) {
-    this.base = c.baseUrl.replace(/\/+$/, '');
+    if ((c.authType === 'oauth' || c.authType === 'scoped_api_token') && !c.cloudId?.trim())
+      throw new Error(`Jira ${c.authType === 'oauth' ? 'OAuth' : 'scoped API token'} configuration requires cloudId`);
+    if (c.authType === 'scoped_api_token' && !c.email?.trim())
+      throw new Error('Jira scoped API token configuration requires email');
+    this.base =
+      c.authType === 'oauth' || c.authType === 'scoped_api_token'
+        ? `https://api.atlassian.com/ex/jira/${encodeURIComponent(c.cloudId!.trim())}`
+        : c.baseUrl.replace(/\/+$/, '');
     this.f = c.fetch ?? fetch;
   }
   private h(json = false) {
     const authorization =
-      this.c.authType === 'api_token' && this.c.email
+      (this.c.authType === 'api_token' || this.c.authType === 'scoped_api_token') && this.c.email
         ? `Basic ${btoa(`${this.c.email}:${this.c.token}`)}`
         : `Bearer ${this.c.token}`;
     return {
@@ -191,7 +200,7 @@ export class JiraConnector implements Connector {
           await fileReader.cancel(reason);
         },
       });
-      const upload = await this.f(`${issue}/attachments`, {
+      const uploadInit: RequestInit & { duplex: 'half' } = {
         method: 'POST',
         headers: {
           ...this.h(),
@@ -200,7 +209,10 @@ export class JiraConnector implements Connector {
         },
         body,
         signal: options.signal,
-      });
+        // Node's fetch requires this flag for a ReadableStream request body.
+        duplex: 'half',
+      };
+      const upload = await this.f(`${issue}/attachments`, uploadInit);
       if (!upload.ok)
         return this.attachmentFailure(
           attachment,

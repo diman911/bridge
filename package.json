@@ -15,6 +15,8 @@
     "test": "vitest run",
     "test:e2e:github": "node --env-file-if-exists=.env.e2e ./node_modules/vitest/vitest.mjs run --config e2e/vitest.config.ts",
     "test:e2e:github:connector": "node --env-file-if-exists=.env.e2e ./node_modules/vitest/vitest.mjs run --config e2e/vitest.config.ts github/connector-github.integration.test.ts",
+    "test:e2e:jira:connector": "node --env-file-if-exists=.env.e2e ./node_modules/vitest/vitest.mjs run --config e2e/vitest.config.ts jira/connector-jira.integration.test.ts",
+    "test:e2e:jira:oauth": "node --env-file-if-exists=.env.e2e ./node_modules/vitest/vitest.mjs run --config e2e/vitest.config.ts jira/connector-jira.oauth.integration.test.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint .",
