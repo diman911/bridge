@@ -79,15 +79,26 @@ describe('JiraConnector', () => {
     const signal = new AbortController().signal;
 
     await connector.checkCredential(signal);
-    await connector.execute(
+    const created = await connector.execute(
       { protocolVersion: 1, type: 'create_issue', subject: 'Title', description: 'Description' },
       { signal },
     );
+    expect(created).toMatchObject({
+      ok: true,
+      issueUrl: 'https://example.atlassian.net/browse/APP-1',
+    });
     await connector.execute(
       { protocolVersion: 1, type: 'update_issue', issueId: 'APP-1', subject: 'Updated' },
       { signal },
     );
-    await connector.read!({ type: 'fetch', connectorId: 'jira', id: 'APP-1' }, { signal });
+    const fetched = await connector.read!(
+      { type: 'fetch', connectorId: 'jira', id: 'APP-1' },
+      { signal },
+    );
+    expect(fetched).toMatchObject({
+      ok: true,
+      issue: { url: 'https://example.atlassian.net/browse/APP-1' },
+    });
     await connector.read!({ type: 'search', connectorId: 'jira', query: 'Title' }, { signal });
     await connector.attach!(
       {

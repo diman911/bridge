@@ -62,6 +62,7 @@ export class JiraConnector implements Connector {
     },
   };
   private base;
+  private siteBase;
   private f;
   constructor(private c: JiraConnectorConfig) {
     if ((c.authType === 'oauth' || c.authType === 'scoped_api_token') && !c.cloudId?.trim())
@@ -70,6 +71,9 @@ export class JiraConnector implements Connector {
       );
     if (c.authType === 'scoped_api_token' && !c.email?.trim())
       throw new Error('Jira scoped API token configuration requires email');
+    // OAuth calls go through api.atlassian.com, but issue links are browser
+    // links and must point to the customer's Jira site.
+    this.siteBase = c.baseUrl.replace(/\/+$/, '');
     this.base =
       c.authType === 'oauth' || c.authType === 'scoped_api_token'
         ? `https://api.atlassian.com/ex/jira/${encodeURIComponent(c.cloudId!.trim())}`
@@ -152,7 +156,7 @@ export class JiraConnector implements Connector {
     return {
       ok: true,
       issueId: key,
-      issueUrl: `${this.base}/browse/${key}`,
+      issueUrl: `${this.siteBase}/browse/${key}`,
     };
   }
   async attach(
@@ -292,7 +296,7 @@ export class JiraConnector implements Connector {
         issues: (d.sections ?? [])
           .flatMap((s) => s.issues ?? [])
           .slice(0, 10)
-          .map((i) => ({ id: i.key, title: i.summaryText, url: `${this.base}/browse/${i.key}` })),
+          .map((i) => ({ id: i.key, title: i.summaryText, url: `${this.siteBase}/browse/${i.key}` })),
       };
     }
     const r = await this.f(
@@ -324,7 +328,7 @@ export class JiraConnector implements Connector {
       issue: {
         id: d.key,
         title: d.fields.summary,
-        url: `${this.base}/browse/${d.key}`,
+        url: `${this.siteBase}/browse/${d.key}`,
         status: d.fields.status?.name,
         description: adfText(d.fields.description),
         rawDescription: d.fields.description ?? undefined,
